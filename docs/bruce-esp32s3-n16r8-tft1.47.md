@@ -196,8 +196,8 @@ Observações de fiação:
 ### 6.3 Passivos — capacitores, resistores e transistor
 | Qtd | Valor | Para quê |
 |-----|-------|----------|
-| 3 | Capacitor **10 µF** | 1 no rail 5V, 1 no 3.3V, **1 dedicado no nRF24** |
-| 5 | Capacitor **100 nF (0,1 µF)** cerâmico | desacoplamento, 1 por módulo |
+| 3 | Capacitor eletrolítico **10 µF** (ou **100 µF** — ver nota) | 1 no rail 5V, 1 no 3.3V, **1 dedicado no nRF24** |
+| 5 | Capacitor **100 nF (0,1 µF) CERÂMICO ("104")** | desacoplamento, 1 por módulo |
 | 8 | Resistor **10 kΩ** | 5 pull-ups dos botões* + 3 do microSD (Dat1/Dat2/CS) |
 | 2 | Resistor **4,7 kΩ** | pull-ups I²C do PN532 (só se o módulo não tiver) |
 | 1 | Resistor **330 Ω** | base do transistor IR |
@@ -255,9 +255,13 @@ Loja: Rua Rubra Sampaio, 1329 – Farias Brito, Fortaleza/CE · https://www.auto
 |-----|-----|---------------------|-----------|------|
 | Transistor IR | 1 | **2N222 – Transistor NPN** (é o 2N2222, TO-92, até 1A/50V) | R$ 0,40 | /2n222-transistor-npn |
 | Resistores (10k/4k7/330/47) | 4 packs | **Resistor CR25 1/4W – x10 pcs** (escolhe o valor) | ~R$ 0,50 /pack | /resistores-diversos |
-| Cap 10 µF | 3 | **Capacitor Eletrolítico 10uF 50V** | R$ 0,25 /un | /capacitor-eletrolitico-10uf-50v |
-| Cap 100 nF (104) | 5 | **Capacitor Cerâmico 50V** (selecionar 100nF) | centavos /un | /capacitor-ceramico-50v- |
-| (nRF24, opção melhor) | 1 | **Capacitor Eletrolítico 100uF 50V** | ~R$ 0,30 | /capacitor-eletrolitico-100uf-50v |
+| Cap eletrolítico (rails + nRF24) | 3 | **Capacitor Eletrolítico 100uF 50V** (substitui o 10 µF; 100 µF é melhor p/ nRF24) | ~R$ 0,30 /un | /capacitor-eletrolitico-100uf-50v |
+| Cap 100 nF (104) — **CERÂMICO** | 5 | **Capacitor Cerâmico 50V** (selecionar 100nF) | centavos /un | /capacitor-ceramico-50v- |
+| (só WROOM-1 cru) | 1 | **Capacitor Eletrolítico 1uF** (pino EN) | ~R$ 0,25 | /capacitores |
+
+> ⚠️ **Eletrolítico x cerâmico:** a AutoCore pode estar com estoque só de **1 µF / 100 µF / 1000 µF** nos eletrolíticos.
+> Sem problema: use **100 µF** no lugar do 10 µF (rails e nRF24). O **1000 µF** é dispensável (grande demais);
+> o **1 µF** só serve p/ o EN do WROOM-1 cru. Os **100 nF são CERÂMICOS**, item à parte (não eletrolítico).
 
 ### Opção B — kits (mais prático, sobra pra outros projetos)
 | Cobre | Produto na AutoCore | Link |
