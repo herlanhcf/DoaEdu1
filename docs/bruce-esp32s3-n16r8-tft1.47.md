@@ -245,6 +245,34 @@ Se usar o **módulo KY-005**, dispensa o LED IR + transistor + resistores 330 Ω
 
 ---
 
+## 8. Onde comprar os passivos — AutoCore Robótica (Fortaleza/CE)
+
+Loja: Rua Rubra Sampaio, 1329 – Farias Brito, Fortaleza/CE · https://www.autocorerobotica.com.br
+*(Preços de referência coletados via busca; confirme no site, podem variar.)*
+
+### Opção A — avulso (compra só o que precisa)
+| BOM | Qtd | Produto na AutoCore | Preço ref. | Link |
+|-----|-----|---------------------|-----------|------|
+| Transistor IR | 1 | **2N222 – Transistor NPN** (é o 2N2222, TO-92, até 1A/50V) | R$ 0,40 | /2n222-transistor-npn |
+| Resistores (10k/4k7/330/47) | 4 packs | **Resistor CR25 1/4W – x10 pcs** (escolhe o valor) | ~R$ 0,50 /pack | /resistores-diversos |
+| Cap 10 µF | 3 | **Capacitor Eletrolítico 10uF 50V** | R$ 0,25 /un | /capacitor-eletrolitico-10uf-50v |
+| Cap 100 nF (104) | 5 | **Capacitor Cerâmico 50V** (selecionar 100nF) | centavos /un | /capacitor-ceramico-50v- |
+| (nRF24, opção melhor) | 1 | **Capacitor Eletrolítico 100uF 50V** | ~R$ 0,30 | /capacitor-eletrolitico-100uf-50v |
+
+### Opção B — kits (mais prático, sobra pra outros projetos)
+| Cobre | Produto na AutoCore | Link |
+|-------|---------------------|------|
+| Todos os resistores | **Kit 560 Resistores 1/4W 5% – 56 valores** | /kit-560-resistores-14w-5-56-valores |
+| Todos os 100 nF (e outros cerâmicos) | **Kit Capacitores Cerâmicos 300pcs 10pF–100nF 50V** | /kit-capacitores-ceramicos-variados-300pcs-10pf-a-100nf-50v |
+| Eletrolíticos (kit cerâmico não inclui) | comprar **10 µF / 100 µF** avulsos | /capacitores |
+| Transistor | **2N222 – Transistor NPN** | /2n222-transistor-npn |
+
+Categorias úteis: Resistores `/resistores` · Capacitores `/capacitores` · Transistores `/transistores`.
+
+> Dica: para o desacoplamento (100 nF) prefira **cerâmico (104)** ao poliéster.
+> A loja também tem o **Capacitor Poliéster 100nF/250V** (`/capacitor-poliester-100nf-250v`),
+> que funciona, mas o cerâmico é o ideal junto de cada módulo.
+
 ## Fontes
 - Bruce (repositório principal): https://github.com/pr3y/Bruce
 - Bruce (org atual): https://github.com/BruceDevices/firmware
