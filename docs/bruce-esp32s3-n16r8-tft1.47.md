@@ -108,11 +108,19 @@ Esta é a parte que costuma faltar nos tutoriais. Divididos por finalidade.
 | 1 | **~4,7 Ω a 100 Ω** | Resistor limitador do LED IR (valor depende da tensão/driver; só p/ LED discreto) |
 
 ### 4.3 Transistor (para o IR de alta potência)
-- **1× transistor NPN 2N2222 / PN2222 / S8050** (ou MOSFET 2N7000) para chavear o **LED IR**
-  com mais corrente do que o GPIO entrega sozinho → alcance muito maior.
-- **Se você usar o módulo KY-005**, ele **já traz o transistor + resistores**, então não
-  precisa montar nada disso à parte. O transistor discreto só é necessário se você colocar
-  um LED IR "cru".
+- **1× transistor NPN 2N2222** (nome completo; "222" é só o apelido). Equivalentes:
+  **2N2222A / PN2222A / P2N2222A**, ou **S8050 / 2N3904**, ou MOSFET **2N7000**.
+  Serve para chavear o **LED IR** com mais corrente do que o GPIO entrega sozinho → alcance muito maior.
+- Ligação:
+  ```
+  GPIO (IR TX) ──[ R base 330Ω–1kΩ ]──► BASE
+  EMISSOR ─────────────────────────────► GND
+  3.3V/5V ──► LED IR (anodo) ; LED IR (catodo) ──[ R limitador ~33–100Ω ]──► COLETOR
+  ```
+- ⚠️ **Pinout varia por fabricante:** PN2222A costuma ser **E–B–C**; o P2N2222A/metálico costuma
+  ser **C–B–E**. Confira o datasheet do SEU modelo antes de soldar.
+- **Se usar o módulo KY-005**, ele **já traz o transistor + resistores** — nesse caso você
+  NÃO precisa do 2N2222 nem dos resistores do IR TX; liga direto no GPIO.
 
 ### 4.4 Passivos extras SÓ se usar o módulo cru ESP32-S3-WROOM-1 (sem DevKit)
 - **10 kΩ** no EN (pull-up) + **1 µF** do EN para GND.
@@ -159,25 +167,69 @@ Observações de fiação:
 
 ---
 
-## 6. Lista de compras resumida (checklist)
+## 6. Lista consolidada com quantidades (BOM)
 
-**Obrigatórios**
-- [ ] 1× ESP32-S3 N16R8 (DevKit ou WROOM-1)
-- [ ] 1× TFT 1,47" ST7789 172×320 SPI
-- [ ] 5× push-buttons (ou joystick 5-way)
-- [ ] Bateria LiPo 3.7V + TP4056 (c/ proteção) + boost 5V + interruptor
-- [ ] 1–2× cap 10 µF, 3–5× cap 100 nF
-- [ ] 3–5× resistor 10 kΩ (botões) *(dispensável com pull-up interno)*
-- [ ] Protoboard/PCB, fios, headers, conector de bateria
+### 6.1 Núcleo — OBRIGATÓRIO
+| Qtd | Item | Observação |
+|-----|------|-----------|
+| 1 | ESP32-S3 **N16R8** | DevKit-C recomendado (já tem regulador, USB e passivos) |
+| 1 | TFT **1,47" ST7789** 172×320 SPI | display principal |
+| 5 | Push-buttons táteis 6mm | UP/DOWN/LEFT/RIGHT/SELECT (ou 1 joystick 5-way) |
+| 1 | Bateria LiPo 3.7V (800–1200 mAh) | versão portátil |
+| 1 | Módulo carregador **TP4056** (c/ proteção) | 1 |
+| 1 | Conversor boost **MT3608** (ajustar 5V) | 1 |
+| 1 | Interruptor liga/desliga | deslizante |
+| 1 | Cabo USB-C | gravação/energia |
 
-**Operacionais (adicione o que quiser)**
-- [ ] CC1101 + antena Sub-GHz
-- [ ] nRF24L01+ (PA/LNA) + antena SMA 2.4 GHz + **cap 10 µF dedicado**
-- [ ] PN532 (+ 2× 4,7 kΩ se o módulo não tiver pull-ups)
-- [ ] LED IR (+ transistor 2N2222 + resistores) **ou** módulo KY-005 (já pronto)
-- [ ] Receptor IR TSOP38238/VS1838B
-- [ ] GPS NEO-6M + antena
-- [ ] Leitor microSD + 2–3× resistor 10 kΩ + cartão microSD
+### 6.2 Módulos operacionais — OPCIONAIS (as funções do "multi-tool")
+| Qtd | Item | Função |
+|-----|------|--------|
+| 1 | **CC1101** | Sub-GHz (315/433/868/915 MHz) |
+| 1 | **nRF24L01+ PA/LNA** | 2.4 GHz (jammer/spectrum/Mousejack) |
+| 1 | **PN532** | NFC/RFID 13.56 MHz |
+| 1 | LED IR 5mm 940nm *(ou 1 módulo KY-005)* | IR TX |
+| 1 | Receptor IR **TSOP38238** (ou VS1838B) | IR RX |
+| 1 | GPS **NEO-6M** | wardriving/geotag |
+| 1 | Leitor microSD (SPI) | armazenamento |
+| 1 | Cartão microSD (4–32 GB) | scripts/dumps |
+
+### 6.3 Passivos — capacitores, resistores e transistor
+| Qtd | Valor | Para quê |
+|-----|-------|----------|
+| 3 | Capacitor **10 µF** | 1 no rail 5V, 1 no 3.3V, **1 dedicado no nRF24** |
+| 5 | Capacitor **100 nF (0,1 µF)** cerâmico | desacoplamento, 1 por módulo |
+| 8 | Resistor **10 kΩ** | 5 pull-ups dos botões* + 3 do microSD (Dat1/Dat2/CS) |
+| 2 | Resistor **4,7 kΩ** | pull-ups I²C do PN532 (só se o módulo não tiver) |
+| 1 | Resistor **330 Ω** | base do transistor IR |
+| 1 | Resistor **47 Ω** | limitador do LED IR |
+| 1 | Transistor **2N2222** (ou PN2222A/S8050/2N7000) | driver do LED IR |
+
+\* Os 5 resistores dos botões são **dispensáveis** se usar `INPUT_PULLUP` interno do ESP32.
+Se usar o **módulo KY-005**, dispensa o LED IR + transistor + resistores 330 Ω e 47 Ω.
+
+### 6.4 Antenas
+| Qtd | Item |
+|-----|------|
+| 1 | Antena Sub-GHz p/ CC1101 (mola/¼-onda da banda, ex. 433 MHz) |
+| 1 | Antena SMA 2.4 GHz p/ nRF24 PA/LNA |
+| 1 | Antena GPS cerâmica ativa (normalmente acompanha o NEO-6M) |
+
+### 6.5 Montagem / diversos
+| Qtd | Item |
+|-----|------|
+| 1 | PCB perfurada / protoboard / PCB custom |
+| 1 | Conector JST 2 pinos p/ bateria |
+| — | Headers macho/fêmea, jumpers, fio, solda |
+| 1 | Case (impressão 3D, opcional) |
+
+### 6.6 SÓ se usar o módulo cru ESP32-S3-WROOM-1 (sem DevKit)
+| Qtd | Item |
+|-----|------|
+| 1 | Regulador 3.3V (AMS1117-3.3, ou melhor HT7333/ME6211 p/ bateria) |
+| 2 | Resistor 10 kΩ (pull-up EN e GPIO0) |
+| 1 | Capacitor 1 µF (no EN, auto-reset) |
+| 2 | Botões táteis (BOOT e RESET) |
+| 1 | Conversor USB-serial CH340/CP2102 *(dispensável: o S3 tem USB nativo)* |
 
 ---
 
