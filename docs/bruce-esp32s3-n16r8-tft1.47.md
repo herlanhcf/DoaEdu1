@@ -179,29 +179,27 @@ Isso é desenvolvimento de firmware de verdade (não é opção de menu) — exi
 PlatformIO com essa alteração. Fora do RSSI, dá pra adaptar o mesmo `setLedBar()` pra outras
 métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
 
-### 3.3 Expansor de I/O pra 6 botões (D-pad + SELECT + BACK) + PN532 — ✅ decidido: PCF8574 (8 bits), GPIO confirmado
+### 3.3 Botões — ❌ PCF8574 DESCARTADO (não cabia fisicamente) → 6 botões diretos no GPIO
 
-**Escolha final: PCF8574** (expansor I2C de 8 bits) — endereço padrão `0x20`, não colide
-com o `0x24` do PN532, então os dois entram no **mesmo barramento** sem tocar em jumper de
-endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 7** (GPIO 0 foi
-descartado dessa função — era pino de strap e sobrou uma opção mais segura, ver nota na
-seção 5). Nenhum dos dois compartilha mais nada com o GPS — ele tem UART fixo e dedicado
-(GPIO 8/42, seção 5).
+> O expansor PCF8574 desta seção **não foi pra frente** — não cabia fisicamente no case.
+> **Decisão final: os 6 botões vão direto em GPIO individual**, sem expansor nenhum — mapa
+> completo, fiação e as ressalvas de cada pino de strap estão na **seção 5** (tabela de
+> botões) e na **seção 4.6** (item por item). O **PN532 continua em I2C** (é o protocolo
+> nativo do chip, não depende do expansor) — sozinho no barramento agora, sem compartilhar
+> com mais nada. Texto original do PCF8574 abaixo, só como histórico:
 
-- `P0` = UP, `P1` = DOWN, `P2` = LEFT, `P3` = RIGHT, `P4` = SELECT, `P5` = BACK — os 6
-  botões completos (4 direções + confirmar + voltar). `P6`–`P7` sobram livres no próprio
-  expansor (dá pra crescer sem gastar mais GPIO nenhum).
-- Cada botão: um lado no pino `Px` do PCF8574, outro no GND. O PCF8574 tem pull-up interno
-  fraco (~100 kΩ, quase-bidirecional) — funciona pra botão, mas se notar bounce/instabilidade,
-  reforça com 10 kΩ externo em cada `Px` (não no ESP32).
-- PN532: só `VCC`(3.3V)/`GND`/`SDA`/`SCL` no mesmo barramento, endereço `0x24` fixo.
+<details>
+<summary>Plano antigo do PCF8574 (descartado) — não vai ser usado</summary>
 
-> Nota: o **AW9523** (usado nativamente pelo `ioExpander`/`IO_EXP_VIBRO` do próprio Bruce em
-> placas oficiais) continua sendo a opção "zero código novo" se algum dia importar um — mas
-> como você foi de PCF8574 (achado local, ver seção 8 Opção C), a leitura dos botões precisa
-> do mesmo tipo de hook que já fizemos no RSSI da seção 3.2: ler os 8 bits do PCF8574 via
-> `Wire.h` (`Wire.requestFrom(0x20, 1)`) e plugar isso onde o Bruce hoje faz `digitalRead()`
-> dos botões, em vez de reaproveitar um driver nativo pronto.
+**Escolha que foi descartada: PCF8574** (expansor I2C de 8 bits) — endereço padrão `0x20`,
+não colide com o `0x24` do PN532, então os dois entrariam no **mesmo barramento** sem tocar
+em jumper de endereço.
+
+- `P0` = UP, `P1` = DOWN, `P2` = LEFT, `P3` = RIGHT, `P4` = SELECT, `P5` = BACK.
+- Cada botão: um lado no pino `Px` do PCF8574, outro no GND. Pull-up interno fraco do
+  PCF8574 (~100 kΩ) bastaria, com reforço de 10 kΩ externo se desse bounce.
+
+</details>
 
 ### 3.4 Módulo LoRa — ❌ DESCARTADO (decisão do usuário, não vai entrar no build)
 
@@ -332,8 +330,9 @@ Esta é a parte que costuma faltar nos tutoriais. Divididos por finalidade.
 
 ### 4.6 Lista final consolidada — TODO componente, VCC/GND
 
-Referência única e atual, batendo com o pinout da seção 5 (botões+PN532 no I2C, chave
-seletora de rádio, LoRa fora, bateria no GPIO 6). **Usando só o que você já comprou:**
+Referência única e atual, batendo com o pinout da seção 5 (PN532 sozinho no I2C, 6 botões
+diretos no GPIO sem expansor, chave seletora de rádio, LoRa fora, bateria no GPIO 6).
+**Usando só o que você já comprou:**
 capacitor cerâmico **104 (= 100 nF)**, capacitor **10 µF**, resistores, e o módulo **IR
 KY-005** (já traz transistor+resistores → você NÃO precisa de transistor nem dos resistores
 do IR TX). Onde eu antes sugeria eletrolítico grande, agora está adaptado pro seu 10 µF.
@@ -350,23 +349,27 @@ do IR TX). Onde eu antes sugeria eletrolítico grande, agora está adaptado pro 
 | 8 | **IR RX** (TSOP38238/VS1838B) | 3.3V | comum | 1× **104** VCC/GND (filtra ruído do sensor) | — |
 | 9 | **IR TX (módulo KY-005)** | 3.3V/5V | comum | — | **nada** — KY-005 já tem transistor+resistor embutidos; liga o `S` direto no GPIO 2 |
 | 10 | **Barra WS2812×8** | 5V | comum | 1× **10 µF** perto do 1º LED (é menos que o ideal de 100–1000 µF, mas ok pra brilho moderado; se piscar/glitch em branco 100%, some outro 10 µF em paralelo) | **330–470 Ω** em série no `DIN` (GPIO 38), perto do ESP32 |
-| 11 | **Barramento I2C** (SDA=48, SCL=7) — **um par de pull-up pro barramento todo**, não um por chip | — | — | — | **4,7 kΩ em SDA + 4,7 kΩ em SCL** (uma vez só). Se PN532 **e** PCF8574 já vierem com pull-up de fábrica, remove/desabilita de um deles (2 em paralelo = ~2,3 kΩ, forte demais) |
-| 12 | ↳ **PN532** (0x24) | 3.3V | comum | 1× **104** VCC/GND | — (pull-up é o item 11) |
-| 13 | ↳ **PCF8574** (0x20) | 3.3V | comum | 1× **104** VCC/GND | A0/A1/A2 → GND (fixa 0x20) |
-| 14 | ↳ **6 botões** (UP/DOWN/LEFT/RIGHT/SELECT/BACK) em P0–P5 | — | 1 lado de cada botão → GND | — | Pull-up interno do PCF8574 basta; **10 kΩ por botão** só se der bounce |
-| 15 | **GPS NEO-6M** | 3.3V bem filtrado | comum | 1× **104** VCC/GND | — |
-| 16 | **Bateria — divisor ADC** (BAT_PIN = GPIO 6) | BAT+ do TP4056 | comum | — | **2× resistor IGUAL em série** BAT+→GND, ponto médio no GPIO 6. Ideal **100 kΩ+100 kΩ** (gasta só ~16 µA); se o kit não tiver 100 k, qualquer par igual serve (ex. 10 k+10 k, gasta mais) |
-| 17 | **⚡ Chave seletora CC1101/nRF24** (SPDT) | comum = 3.3V; A→VCC CC1101; B→VCC nRF24 | GND dos rádios sempre ligado | — | — (item 5 e 6 já têm os 10 kΩ nos CS que a chave exige) |
+| 11 | **PN532** (I2C, SDA=48/SCL=7, endereço 0x24 — sem expansor, sozinho no barramento) | 3.3V | comum | 1× **104** VCC/GND | **4,7 kΩ em SDA + 4,7 kΩ em SCL** (só se o breakout não já trouxer de fábrica) |
+| 12 | ↳ **LEFT** (botão) | — | via pull-up | — | pull-up **10 kΩ** no GPIO 47, botão fecha pro GND |
+| 13 | ↳ **SELECT** (botão) | — | via pull-up | — | pull-up **10 kΩ** no GPIO 0, botão fecha pro GND |
+| 14 | ↳ **UP** (botão) | — | via pull-up | — | pull-up **10 kΩ** no GPIO 3, botão fecha pro GND |
+| 15 | ↳ **DOWN** (botão) | — | via pull-up | — | pull-up **10 kΩ** no GPIO 43 (⚠️ confirme devkit — nota seção 5), botão fecha pro GND |
+| 16 | ↳ **RIGHT** (botão) | — | via pull-up | — | pull-up **10 kΩ** no GPIO 44 (⚠️ confirme devkit — nota seção 5), botão fecha pro GND |
+| 17 | ↳ **BACK** (botão) ⚠️ fiação invertida | — | via pull-down | — | pull-**down** **10 kΩ** no GPIO 46 (resistor pro GND), botão fecha pro **3.3V** (não pro GND — é o único ao contrário) |
+| 18 | **GPS NEO-6M** | 3.3V bem filtrado | comum | 1× **104** VCC/GND | — |
+| 19 | **Bateria — divisor ADC** (BAT_PIN = GPIO 6) | BAT+ do TP4056 | comum | — | **2× resistor IGUAL em série** BAT+→GND, ponto médio no GPIO 6. Ideal **100 kΩ+100 kΩ** (gasta só ~16 µA); se o kit não tiver 100 k, qualquer par igual serve (ex. 10 k+10 k, gasta mais) |
+| 20 | **⚡ Chave seletora CC1101/nRF24** (SPDT) | comum = 3.3V; A→VCC CC1101; B→VCC nRF24 | GND dos rádios sempre ligado | — | — (item 5 e 6 já têm os 10 kΩ nos CS que a chave exige) |
 
 **Contagem rápida do que soldar (fora os módulos):**
-- **Capacitor 104 (100 nF):** ~9 un → itens 3,4,5,6,7,8,12,13,15 (1 por módulo).
+- **Capacitor 104 (100 nF):** ~7 un → itens 3,4,5,6,7,8,11,18 (1 por módulo — **sem** PCF8574, que saiu da lista).
 - **Capacitor 10 µF:** ~4 un → rail 5V, rail 3.3V, nRF24 dedicado, WS2812.
-- **Resistor 10 kΩ:** ~4 un → CS do CC1101, CSN do nRF24, CS do SD (+ EN/GPIO0 se WROOM cru).
-- **Resistor 4,7 kΩ:** 2 un → pull-up do I2C (se os breakouts não trouxerem).
+- **Resistor 10 kΩ:** **~9 un** → CS do CC1101, CSN do nRF24, CS do SD, **+ 6 botões diretos** (5 pull-up + 1 pull-down) — subiu bastante em relação à versão com PCF8574, é o custo de não usar expansor.
+- **Resistor 4,7 kΩ:** 2 un → pull-up do I2C do PN532 (se o breakout não trouxer).
 - **Resistor 330–470 Ω:** 1 un → série do WS2812.
 - **Resistor p/ divisor de bateria:** 2 un iguais (100 kΩ ideal).
 - **Chave SPDT:** 1 un → seletora de rádio.
 - **Transistor:** **nenhum** (KY-005 resolve o IR TX).
+- **PCF8574:** **removido da lista** — não é mais usado.
 
 **Se o problema for o CC1101 "escutando tudo" ao plugar a antena:** o primeiro suspeito é a
 linha **nRF24** (#6) — sem o cap eletrolítico dedicado, o ruído da alimentação sobe pro
@@ -412,28 +415,43 @@ microSD (SPI)                 IR (módulo KY-005)        LED WS2812 ×8
   MOSI ....... GPIO 16         BATERIA (ADC1)
                                  BAT_PIN .. GPIO 6 (divisor 2× resistor igual)
 
-I2C — NFC + expansor de botões (1 barramento, 2 pinos, cobre TUDO)
+I2C — só o PN532 (sem expansor, botões agora são diretos)
   SDA ........ GPIO 48
   SCL ........ GPIO 7
     → PN532 (NFC), endereço 0x24
-    → PCF8574 (expansor 8 bits), endereço 0x20 — 6 botões (D-pad + SELECT + BACK)
-        P0 = UP       P1 = DOWN     P2 = LEFT
-        P3 = RIGHT    P4 = SELECT   P5 = BACK
-        P6–P7 = livres (crescer sem gastar GPIO)
 
-LIVRES / RESERVA — GPIO 47 (limpo) · 0, 3, 45, 46 (strap) · 19, 20 (USB nativo)
+BOTÕES — 6× direto no GPIO (SEM PCF8574), pull-up ou pull-down conforme o pino
+  LEFT ..... GPIO 47  (limpo, pull-up 10 kΩ)
+  SELECT ... GPIO 0   (strap seguro, pull-up 10 kΩ)
+  UP ....... GPIO 3   (strap seguro, pull-up 10 kΩ)
+  DOWN ..... GPIO 43  (UART0 RX — ⚠️ confirme que seu devkit não usa, ver nota)
+  RIGHT .... GPIO 44  (UART0 TX — ⚠️ confirme que seu devkit não usa, ver nota)
+  BACK ..... GPIO 46  (strap ⚠️ — pull-DOWN 10 kΩ + botão fecha pro 3.3V, ver nota)
+
+LIVRES / RESERVA — GPIO 45 (strap, sobrou sem uso) · 19, 20 (USB nativo, intocado)
 ```
 
-**⚠️ Correção importante — GPIO 0 NÃO é mais usado (era pra SCL, mudei pra GPIO 7):**
-Pesquisando mais a fundo: sim, tecnicamente o GPIO0 *funcionaria* como SCL — o pull-up do
-I2C mantém o nível alto que o boot precisa. Mas o consenso da comunidade ESP32/ESP32-S3 é
-**evitar strap pin em periférico crítico quando sobra pino livre pra usar** (o próprio
-GPIO0 tem um pull-up interno fraco que, combinado com o pull-up externo do I2C e com
-qualquer coisa que o circuito de auto-reset do USB-serial (DTR/RTS) fizer nesse pino durante
-gravação, é uma variável a mais que não vale o risco de "às vezes não entra em modo de
-gravação" só pra economizar 1 pino). Como o **GPIO 7 sobrou livre** depois que o LoRa foi
-descartado, troquei o `SCL` pra lá — **GPIO 0 fica completamente de fora do circuito agora**,
-sem nenhum componente ligado nele, é o jeito mais seguro.
+**⚠️ Botões 100% diretos no GPIO — sem PCF8574** (decisão do usuário: o módulo expansor não
+cabia fisicamente no case). Isso força o uso de **5 dos 7 pinos que sobravam**, incluindo
+3 de strap — cada um com uma ressalva diferente:
+
+| Botão | GPIO | Por que esse pino | Fiação |
+|---|---|---|---|
+| LEFT | **47** | único 100% limpo que sobrava | pull-up 10 kΩ padrão (repouso HIGH, pressiona→GND) |
+| SELECT | **0** | strap, mas pede HIGH no boot — igual ao repouso do pull-up padrão | pull-up 10 kΩ padrão |
+| UP | **3** | strap (seleção de JTAG), mesma lógica do GPIO0 | pull-up 10 kΩ padrão |
+| DOWN | **43** | UART0 RX — livre **só se seu devkit tiver 1 porta USB só** (nativa) | pull-up 10 kΩ padrão |
+| RIGHT | **44** | UART0 TX — mesma ressalva do 43 | pull-up 10 kΩ padrão |
+| BACK | **46** | strap, mas pede **LOW** no boot (VDD_SPI/ROM msg) — o **oposto** dos outros | **pull-DOWN** 10 kΩ (resistor pro GND) + botão fecha pro **3.3V** (não pro GND) |
+
+**Antes de soldar DOWN/RIGHT (GPIO 43/44):** confira se seu devkit tem só **1 porta USB-C**
+(a nativa do ESP32-S3, usada tanto pra gravar quanto pro Serial CLI). Se tiver **2 portas**
+(uma nativa + uma via chip CP2102/CH340 separado), esse chip provavelmente já usa 43/44 por
+dentro da placa — nesse caso esses 2 botões não têm pino seguro sobrando; a saída seria usar
+o GPIO 45 (o único que ainda ficou de reserva) com a mesma fiação invertida do 46, e reduzir
+pra 5 botões usando o outro.
+
+**GPIO 45 fica de reserva** — não precisei arriscar os 2 piores strap ao mesmo tempo, só o 46.
 
 **Pinos reservados do ESP32-S3 N16R8 — confirmado via datasheet (pra futuras expansões):**
 | Faixa | Motivo | Pode usar? |
@@ -441,23 +459,24 @@ sem nenhum componente ligado nele, é o jeito mais seguro.
 | GPIO 26–32 | Flash SPI interno | ❌ nunca |
 | GPIO 33–34 | Nem existem fisicamente no módulo WROOM-1 (não são pinos de fora) | ❌ não existem no seu módulo |
 | GPIO 35–37 | PSRAM Octal interna — **todo módulo R8 (8MB PSRAM) tem isso reservado** | ❌ nunca no N16R8 |
-| GPIO 19–20 | USB nativo (D-/D+) | ⚠️ só se não for usar BadUSB por cabo |
-| GPIO 43–44 | UART0 padrão (console serial) | ⚠️ só se não for usar o Serial CLI/log por esse UART |
-| GPIO 0, 3, 45, 46 | Strap (boot mode/JTAG/VDD_SPI) | ⚠️ dá pra reusar depois do boot, mas só se não sobrar outra opção |
+| GPIO 19–20 | USB nativo (D-/D+) | ❌ intocado — precisa pro BadUSB por cabo |
+| GPIO 43–44 | UART0 padrão (console serial) | ⚠️ usado nos botões DOWN/RIGHT — confirme seu devkit (nota acima) |
+| GPIO 0, 3, 46 | Strap (boot mode/JTAG/VDD_SPI) | ⚠️ usado nos botões SELECT/UP/BACK — ver fiação na tabela acima |
+| GPIO 45 | Strap (VDD_SPI) | Livre de reserva |
 
 **O que mudou e por quê:**
-- **Botões (PREV/NEXT/SELECT + os 2 que faltam) e o PN532 saíram dos GPIOs diretos e foram
-  pro PCF8574/I2C** (pedido seu — expansor de 8 bits: 5 botões usam P0–P4, sobram 3 pinos
-  no próprio PCF8574 pra futuro). PN532 entra no mesmo SDA/SCL, endereço `0x24` não colide
-  com o `0x20` padrão do PCF8574.
+- **PN532 continua em I2C** (SDA=48/SCL=7) — é o protocolo nativo do chip, não tem como
+  contornar isso sem trocar de módulo. O que saiu foi só o **PCF8574** (expansor de botões):
+  os 6 botões agora são **GPIO direto**, um por um, cada um com pull-up (ou pull-down no
+  caso do GPIO46) individual — não tem mais "P0–P7" de expansor.
 - Isso **liberou 5 GPIOs** que antes eram PREV(6)/NEXT(7)/SELECT(47) e o hack
   "GPS/NFC compartilhado, alterna por firmware" (8/42) — esse hack deixa de existir: GPS
   agora tem UART fixo e dedicado (RX 8, TX 42), sem precisar alternar nada em firmware.
 - Dos 5 pinos liberados, sobrou um pra **bateria** (`BAT_PIN` = **GPIO 6**, ADC1 limpo, não é
   strap — resolve a seção 3.5 sem precisar mexer em mais nada).
 - **LoRa descartado** (decisão do usuário — ver seção 3.4, marcada como não planejada). Dos
-  5 pinos liberados, GPIO 6→bateria, GPIO 8→GPS RX e GPIO 42→GPS TX já têm dono; sobram só
-  **GPIO 7 e GPIO 47 livres em reserva** — nenhum módulo planejado usa eles agora.
+  5 pinos liberados, GPIO 6→bateria, GPIO 8→GPS RX e GPIO 42→GPS TX já têm dono; sobrava
+  GPIO 7 e GPIO 47 — o **GPIO 7 virou SCL do PN532**, e o **GPIO 47 agora é o botão LEFT**.
 
 Observações de fiação:
 - **CC1101 e nRF24 compartilham SCK/MOSI/MISO (GPIO 12/11/13)**, cada um com seu CS. Com a
