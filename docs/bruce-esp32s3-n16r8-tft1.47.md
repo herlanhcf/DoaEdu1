@@ -239,6 +239,37 @@ interopera com Meshtastic, MeshCore nem gateways LoRaWAN genéricos**. Se o obje
 farejar essas redes especificamente (não só ter alcance longo), o firmware hoje só dá
 visibilidade de RF crua (RSSI/presença de portadora), não decodifica o protocolo delas.
 
+### 3.5 Percentual de bateria (você usa TP4056, sem fuel gauge)
+
+O **TP4056** é só carregador (CC/CV) — não tem telemetria nenhuma, nem I2C nem UART, só os
+LEDs de status (CHRG/STDBY). Pra ter % de bateria no Bruce, precisa de um sensor separado
+lendo a tensão. **Método nativo do Bruce**: divisor de tensão + ADC — a maioria das placas
+lê bateria assim, `BAT_PIN` no board config + `getBattery()` já converte pra %.
+
+**Ligação:**
+- Divisor **2× 100 kΩ** (1:1) do nó **BAT+** do TP4056 (a tensão crua da bateria, 3.0–4.2V)
+  até o `BAT_PIN` — divide a tensão pela metade, já que a bateria vai até 4,2V e o ADC do
+  ESP32 aguenta até 3,3V.
+- `BAT_PIN` = **GPIO 1** (ver seção 5 — precisa ser ADC1, GPIO 1–10; o ADC2, GPIO 11–20,
+  falha com o WiFi ativo, que no Bruce é o tempo todo).
+- No firmware: lê com `analogReadMilliVolts()` e multiplica por 2 pra ter a tensão real.
+
+**Curva de conversão tensão → % (LiPo não é linear):**
+| Tensão | % aproximado |
+|--------|---------------|
+| 4,2 V | 100% |
+| 3,9 V | ~80% |
+| 3,7 V | ~50% |
+| 3,5 V | ~20% |
+| 3,0–3,2 V | 0% (BMS de proteção já corta por aqui) |
+
+**Alternativa mais precisa (se topar importar):** chip **MAX17048** (fuel gauge dedicado,
+ModelGauge, I2C endereço `0x36`) — devolve % pronto, bem mais preciso que a curva de tensão
+simples, e **não gasta GPIO novo** (entra no mesmo barramento I2C do PN532/MCP23017). Não
+achado nas lojas de Fortaleza (AutoCore/SmartKits) — importado (Adafruit/AliExpress), e não
+confirmei driver nativo no Bruce pra ele — a integração seria no mesmo estilo do `setLedBar()`
+da seção 3.2 (ler por `Wire.h` e alimentar o `getBattery()`).
+
 ---
 
 ## 4. Passivos: CAPACITORES, RESISTORES e TRANSISTOR
@@ -303,7 +334,8 @@ clássico de ruído entrando pela alimentação/RF, não de bug de firmware — 
 | **ESP32-S3** (só se módulo cru WROOM-1, sem DevKit) | 100 nF + 10 µF no pino 3V3 | 10 kΩ pull-up no EN + 10 kΩ pull-up no GPIO0 |
 | **CC1101** ⚠️ | **100 nF cerâmico direto nos pinos VCC/GND do módulo** — solda um extra mesmo se a placa clone já tiver um, o de fábrica costuma ser fraco/mal posicionado | pull-up ~10 kΩ no CSN (evita flutuar no boot/bus compartilhado) |
 | **nRF24L01+** ⚠️ (principal suspeito de ruído) | 100 nF cerâmico VCC/GND **+ 10 µF (ou 100 µF) eletrolítico dedicado**, soldado direto entre VCC e GND do módulo — sem esse cap grande ele "sujeita" a alimentação inteira | pull-up ~10 kΩ no CSN |
-| **PN532** (I²C) | 100 nF cerâmico VCC/GND | 4,7 kΩ em SDA + 4,7 kΩ em SCL (só se o breakout não já trouxer) |
+| **PN532** (I²C, agora SDA=GPIO2/SCL=GPIO0) | 100 nF cerâmico VCC/GND | 4,7 kΩ em SDA + 4,7 kΩ em SCL (só se o breakout não já trouxer) |
+| **Bateria (ADC, GPIO1)** | — | Divisor **2× 100 kΩ** do BAT+ do TP4056 até o `BAT_PIN` (ver seção 3.5) |
 | **Leitor microSD** | 100 nF cerâmico VCC/GND | 10 kΩ pull-up em CS, Dat1 e Dat2 |
 | **Botões de navegação** | — | 10 kΩ pull-up por botão (dispensável com `INPUT_PULLUP` interno) |
 | **IR TX** (só LED discreto, sem KY-005) | — | 330 Ω na base do transistor 2N2222 + 47–100 Ω limitador do LED |
@@ -337,26 +369,32 @@ DISPLAY (ST7789 SPI)          CC1101 (SPI)              nRF24L01+ (SPI)
 
 PN532 (I2C)                   IR                        GPS NEO-6M (UART)
   SDA ........ GPIO 2           RX (TSOP) . GPIO 4        RX ...... GPIO 39
-  SCL ........ GPIO 1           TX (KY-005) GPIO 5        TX ...... GPIO 40
+  SCL ........ GPIO 0 (strap*)  TX (KY-005) GPIO 5        TX ...... GPIO 40
 
-microSD (SPI)                 BOTÕES
-  MOSI/CMD ... GPIO 41           UP ...... GPIO 14
+microSD (SPI)                 BOTÕES                    BATERIA (ADC)
+  MOSI/CMD ... GPIO 41           UP ...... GPIO 14         BAT_PIN . GPIO 1
   MISO/Dat0 .. GPIO 19           DOWN .... GPIO 13
   SCK/CLK .... GPIO 20           LEFT .... GPIO 47
   CS/Dat3 .... GPIO 42           RIGHT ... GPIO 21
                                  SELECT .. GPIO 48
 ```
 
-> ⚠️ **Sem GPIO livre para a barra WS2812 (RGB_LED) neste pinout de referência** — todos os
-> GPIOs 0–48 utilizáveis do ESP32-S3 N16R8 já estão ocupados pelos módulos acima (ou são
-> reservados de fábrica: 26–32 = flash, 19/20 = USB nativo, 43/44 = UART0). Duas saídas
-> práticas:
-> 1. **Reaproveitar um pino de strap** (GPIO 0 ou GPIO 45) para o `RGB_LED` — este mesmo
->    pinout já faz isso com sucesso para o display (GPIO 3 = BLK, GPIO 46 = CS, ambos
->    strap). Funciona porque o WS2812 só é "driven" depois do boot; só evite qualquer
->    pull elétrico no módulo que force o nível errado durante o power-on.
-> 2. **Liberar um pino não essencial** — ex.: um dos botões de direção (se for usar
->    joystick analógico) ou o IR RX/TX (se não for montar infravermelho).
+\* `PN532 SCL` foi movido pra **GPIO 0** (era GPIO 1) pra liberar o GPIO 1 — o único
+ADC1 "limpo" que sobrava — pro `BAT_PIN` da seção 3.5. Funciona porque barramento I2C
+ocioso fica em nível **alto** por causa do pull-up (mesmo sem o ESP32 fazer nada), que é
+exatamente o nível que o GPIO0 precisa ter no boot pra entrar em modo normal (LOW só
+entraria em modo gravação). Mesmo princípio que já usamos pro `CS`/`BLK` do display nos
+pinos de strap 46/3.
+
+> ⚠️ **RGB_LED (barra WS2812) e o LoRa (NSS/DIO0/RST) ainda não têm GPIO livre** neste
+> pinout — todos os GPIOs 0–48 utilizáveis do ESP32-S3 N16R8 já estão ocupados pelos
+> módulos acima (ou reservados de fábrica: 26–32 = flash, 19/20 = USB nativo, 43/44 =
+> UART0), e o GPIO 0 e o GPIO 1, que eram os "coringas" que sobravam, já foram pro PN532
+> e pra bateria acima. Pra esses, a saída segue sendo:
+> 1. **Reaproveitar o pino de strap GPIO 45** (o último que sobra) pra um deles — o
+>    display já usa os outros dois strap (GPIO 3 = BLK, GPIO 46 = CS) com sucesso.
+> 2. **Liberar um pino não essencial** pro resto — ex.: um dos botões de direção (se for
+>    usar joystick analógico) ou o IR RX/TX (se não for montar infravermelho).
 
 Observações de fiação:
 - O CC1101, nRF24 e o SD podem **compartilhar o mesmo barramento SPI** (com CS separados)
