@@ -165,6 +165,58 @@ Observações de fiação:
 - Todos os módulos vão em **3.3V** (o ESP32 é 3.3V; nada de 5V nas linhas de sinal).
 - Alimente `nRF24 PA/LNA` e `GPS` por 3.3V bem filtrado (é onde o cap de 10 µF importa).
 
+### 5.1 Por que SCK/MOSI/MISO do CC1101 e do nRF24 não deveriam ir nos mesmos pinos do SD
+
+**Eletricamente dá, sim.** SPI é um barramento *multi-slave* por definição: vários
+dispositivos podem compartilhar `SCK`/`MOSI`/`MISO`, desde que **cada um tenha seu próprio
+CS (chip-select)** e nunca dois CS ativos ao mesmo tempo. É por isso que o pinout de
+diagramas oficiais do Bruce (ex.: Cardputer ADV com CC1101+nRF24 no mesmo "SD sniffer")
+usa exatamente esse esquema — `CLK`/`CMD`/`DAT0` do slot de SD reaproveitados como
+`SCK`/`MOSI`/`MISO` do rádio, cada um com seu próprio CSN.
+
+**O problema é no firmware Bruce, não na eletrônica.** Compartilhar esse barramento com CC1101
++ nRF24 **+** cartão SD ao mesmo tempo tem bugs conhecidos (alguns já corrigidos, outros
+ainda abertos em set/2026):
+
+1. **CS flutuante no boot atropela o SD.** `setupSdCard()` roda dentro de `begin_storage()`
+   **antes** de `_post_setup_gpio()` configurar os pinos de CS do nRF24/CC1101/LoRa como
+   saída. Nesse intervalo os CS ficam em alta impedância ("flutuando") e, num barramento
+   compartilhado, isso pode puxar a linha para nível baixo bem no momento em que o
+   `SD.begin()` está tentando responder — o SD simplesmente não monta, sem erro claro.
+   Corrigido na PR [#2926](https://github.com/BruceDevices/firmware/pull/2926)
+   (inicializar todo CS como `OUTPUT/HIGH` **antes** de `setupSdCard()`), mas só vale
+   a partir da versão de firmware que já inclui esse fix.
+2. **Ordem de init entre CC1101 e nRF24.** Em placas dual-rádio com um SPI só, o CC1101
+   pode falhar se for o primeiro a inicializar — o driver dele assume que o barramento já
+   foi "acordado" por outra coisa. Abrir o nRF24 primeiro configura o barramento e o
+   CC1101 passa a responder. É dependência de ordem no driver, não limitação de fiação.
+3. **Bug ainda aberto combinando os três.** A issue
+   [#2899](https://github.com/BruceDevices/firmware/issues/2899) (set/2026) relata que,
+   com CC1101 + SD juntos em modo "shared SPI", só o modo **legacy** (pinos dedicados,
+   sem compartilhar) funciona — no modo compartilhado o SD para de responder. Sem fix
+   definitivo até a data deste doc.
+
+**Por isso** o build de referência da seção 5 (e a maioria dos guias da comunidade) prefere
+dar **pinos/SPI dedicados** para CC1101, nRF24 e SD em vez de compartilhar — evita esses
+três bugs de inicialização/corrida de CS que o firmware ainda tem, mesmo sabendo que "na
+teoria" o hardware permite compartilhar.
+
+**Se ainda assim quiser compartilhar** (para economizar GPIOs num ESP32 com poucos pinos
+livres):
+- CS **sempre** dedicado por módulo — nunca compartilhe o próprio CS.
+- Pull-up (~10 kΩ) em cada linha de CS, para não flutuar durante o boot antes do
+  `_post_setup_gpio()` rodar.
+- Inicialize o **nRF24 antes** do CC1101 no código/ordem de detecção.
+- Use uma versão do firmware **posterior** ao merge da PR #2926.
+- Ainda assim, teste bem o SD junto — a issue #2899 mostra que pode restar bug residual
+  no modo compartilhado.
+
+Fontes: [PR #2926 — fix de CS flutuante no SD](https://github.com/BruceDevices/firmware/pull/2926) ·
+[Issue #2899 — shared SPI falha com SD](https://github.com/BruceDevices/firmware/issues/2899) ·
+[Issue #2435 — dual-radio CC1101+nRF24 com brucePins.conf](https://github.com/BruceDevices/firmware/issues/2435) ·
+[Wiki: wiring CC1101+nRF24 (Cardputer ADV)](https://github.com/BruceDevices/Wiki/blob/main/docs/wiring-diagrams/cardputer-adv/cc1101-nrf24.md) ·
+[Issue #586 — CYD, múltiplos periféricos SPI simultâneos](https://github.com/BruceDevices/firmware/issues/586)
+
 ---
 
 ## 6. Lista consolidada com quantidades (BOM)
