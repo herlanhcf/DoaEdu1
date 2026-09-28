@@ -44,6 +44,11 @@ Legenda: ✅ já funciona com o que você tem · 🔧 nativo do ESP32-S3, não p
 | Ninebot BLE Tuning | Interage via BLE UART com patinetes Ninebot/Xiaomi (hoje só destrava velocidade máx.) |
 | Bad BLE | Vira teclado Bluetooth, injeta Ducky Script sem fio |
 | BLE Security Suite | Quick Vuln Scan, Deep Device Profiling, ataques encadeados (HFP→HID→FastPair) — fora da versão Lite |
+| BLE Tracker Detector 🚧 | Detecta AirTag/Samsung SmartTag/Tile/óculos smart (Meta Ray-Ban) desconhecidos por perto — feature comunitária (PR do TurbulentGoat), confirme se já está na sua versão antes de contar com ela |
+
+> ⚠️ **Detector de skimmer Bluetooth (leitor de cartão clonado escondido) ainda NÃO existe no
+> Bruce** — é só um pedido de feature em aberto (issues #1088/#1224), não confie que essa
+> função já está disponível.
 
 ## 📻 Sub-GHz — ✅ com seu CC1101
 | Função | O que faz |
@@ -53,6 +58,7 @@ Legenda: ✅ já funciona com o que você tem · 🔧 nativo do ESP32-S3, não p
 | Replay | Retransmite um sinal já capturado |
 | Jammer | Interferência na frequência sintonizada |
 | Spectrum | Analisador de espectro + leitura de RSSI |
+| **Bruteforce** | Gera e transmite sequências de código automaticamente (`rf_bruteforce.cpp`), baseado em templates de protocolo — mira portões/garagens antigas de **código fixo** (sem rolling code/criptografia). Pode usar **sequência de De Bruijn** pra cobrir todas as combinações possíveis sem repetir código à toa, bem mais rápido que testar um por um |
 
 ## 📡 2.4 GHz — ✅ com seu nRF24L01+
 | Função | O que faz |
@@ -91,7 +97,25 @@ Legenda: ✅ já funciona com o que você tem · 🔧 nativo do ESP32-S3, não p
 ## 🧠 JS Interpreter — 🔧 nativo (roda no firmware, sem hardware extra)
 Motor Duktape (JS ES5) embarcado, com API própria (BJS) que acessa WiFi, RF, display, input
 e hardware por script — automatiza combinações de tudo acima. Scripts `.js` na pasta
-`/scripts`, aparecem no menu **Scripts**.
+`/scripts`, aparecem no menu **Scripts**. É a base de um monte de **apps/jogos feitos pela
+comunidade** que rodam em cima do interpretador (não são parte do firmware "core", mas
+funcionam em qualquer Bruce com o Interpreter ativado): Tetris (BruceBlocks), Snake, um
+shooter vertical, um "bichinho virtual" (tamagochi) e até um port de DOOM.
+
+## 🖥️ Controle remoto / CLI — 🔧 nativo (WiFi + USB, sem módulo extra)
+| Função | O que faz |
+|---|---|
+| Serial CLI | Terminal de comandos via USB (`ir`, `subghz`, `led`, `gpio`, `i2c`, `badusb`, `js`, `crypto`, `storage`, `settings`, `webui`, entre ~20 comandos) — maioria compatível com a CLI do Flipper Zero. Dá pra automatizar/rodar sem tela |
+| WebUI | Além do file manager (já citado em WiFi): roda comandos serial, **vê a tela do dispositivo ao vivo pelo navegador**, e dispara payloads de IR/RF/BadUSB remotamente |
+| App companion (PC/celular) | App oficial multiplataforma — grava firmware, roda comandos serial e espelha a tela do Bruce ao vivo (**Screen Mirror**), tudo num lugar só |
+
+## 🔊 Áudio (buzzer/alto-falante) — 🟡 precisa de módulo (você não tem)
+| Função | O que faz |
+|---|---|
+| Music Player / Tone | Toca melodias/tons pelo buzzer ou alto-falante do dispositivo |
+
+Só funciona em placas com buzzer/speaker embutido, ou se você **adicionar um buzzer
+passivo/piezo** num GPIO livre — não está na sua BOM atual.
 
 ## 🎙️ Microfone — 🟡 precisa de módulo (você não tem)
 | Função | O que faz |
@@ -116,7 +140,8 @@ Gera QR Code de URL customizada ou de **PIX** (pagamento instantâneo brasileiro
 Wardriving (geolocaliza os escaneamentos de WiFi/BT) e tela de GPS Tracker (info/posição).
 
 ## ⚙️ Config/Others — 🔧 nativo
-Clock (NTP, fuso, DST, 12h/24h), UI Theme / UI Color (tema Flipper que já configuramos), LED
+Clock (NTP, fuso, DST, 12h/24h), UI Theme / UI Color (tema Flipper que já configuramos), **Boot
+Animation** (animação de abertura customizável, mesmos repositórios de tema da comunidade), LED
 (efeitos da barra WS2812 que já configuramos), além de toggles pra Sniffer, Custom SubGHz,
 PN532 BLE/UART.
 
@@ -130,8 +155,18 @@ PN532 BLE/UART.
 | **Microfone I2S (ex. INMP441)** | Mic Spectrum + gravação de áudio | Opcional, função menor |
 | **Módulo Ethernet (W5500/LAN8720)** | Conectividade cabeada | Opcional, raramente necessário num build portátil |
 
-Tudo o mais (WiFi, BLE, Sub-GHz, 2.4GHz, IR, NFC, BadUSB/Bad BLE, JS Interpreter, QR Code,
-Arquivos) **já funciona no seu hardware atual**, sem precisar de nada extra.
+Tudo o mais (WiFi, BLE, Sub-GHz + Bruteforce, 2.4GHz, IR, NFC, BadUSB/Bad BLE, JS Interpreter,
+QR Code, Arquivos, Serial CLI/WebUI/App companion) **já funciona no seu hardware atual**, sem
+precisar de nada extra.
+
+## Correção da versão anterior deste doc
+- **Faltava o Bruteforce de Sub-GHz** (código fixo, De Bruijn) — adicionado na tabela de Sub-GHz.
+- **Faltavam**: Serial CLI, WebUI (parte de controle remoto), App companion (Screen Mirror),
+  Music Player/Tone, Boot Animation, e os apps/jogos comunitários do JS Interpreter.
+- **BLE Tracker Detector** (AirTag/SmartTag/Tile) existe como PR comunitário — confirme se já
+  chegou na sua versão antes de contar com ela.
+- **Skimmer detector Bluetooth NÃO existe** ainda — é só pedido de feature em aberto, não
+  confunda com o Tracker Detector acima (são coisas diferentes).
 
 ## Fontes
 - Features and Capabilities (DeepWiki): https://deepwiki.com/pr3y/Bruce/1.1-features-and-capabilities
@@ -142,5 +177,9 @@ Arquivos) **já funciona no seu hardware atual**, sem precisar de nada extra.
 - RFID Features (TagOMatic): https://deepwiki.com/pr3y/Bruce/7-rfid-features
 - BadUSB and HID Emulation: https://deepwiki.com/pr3y/Bruce/8-badusb-and-hid-emulation
 - JS Interpreter / BJS API: https://github.com/BruceDevices/firmware/wiki/Interpreter
+- Serial Commands: https://github.com/BruceDevices/firmware/wiki/Serial
+- WebUI: https://wiki.bruce.computer/controlling-device/webui/
+- BLE Tracker Detector (PR comunitário): https://github.com/BruceDevices/firmware/pull/2915
+- Skimmer detector (feature request, não implementada): https://github.com/BruceDevices/firmware/issues/1224
 - Wiki oficial: https://wiki.bruce.computer/
 - Repositório: https://github.com/pr3y/Bruce
