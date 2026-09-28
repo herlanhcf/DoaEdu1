@@ -179,34 +179,25 @@ Isso é desenvolvimento de firmware de verdade (não é opção de menu) — exi
 PlatformIO com essa alteração. Fora do RSSI, dá pra adaptar o mesmo `setLedBar()` pra outras
 métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
 
-### 3.3 Expansor de I/O pra 6 botões + PN532 (economizar GPIO)
+### 3.3 Expansor de I/O pra 5 botões + PN532 — ✅ decidido: PCF8574 (8 bits), GPIO confirmado
 
-Com o pinout da seção 5 já saturado (ver aviso lá), a saída pra caber **6 botões + o PN532**
-sem brigar por GPIO é um **expansor I2C**:
+**Escolha final: PCF8574** (expansor I2C de 8 bits) — endereço padrão `0x20`, não colide
+com o `0x24` do PN532, então os dois entram no **mesmo barramento** sem tocar em jumper de
+endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 0**.
 
-- **Recomendação ideal: AW9523.** É o chip que o **próprio firmware Bruce já usa
-  nativamente** (o objeto `ioExpander` do código-fonte já controla pelo menos o motor de
-  vibração — `IO_EXP_VIBRO` — nas placas oficiais Cardputer/StickC). 16 canais, pull-up
-  configurável, interrupt-on-change. Vantagem real: reaproveita driver que já existe no
-  Bruce em vez de escrever um do zero. **Não é achado nas lojas de Fortaleza** — só
-  importado (Adafruit/AliExpress).
-- **Alternativa disponível localmente: MCP23017.** 16 canais, GPIO de verdade (não
-  quase-bidirecional como o PCF8574), pull-up interno, interrupt-on-change — o mais
-  próximo do AW9523 em capacidade. Ver seção 8 (Opção C) pra onde comprar em Fortaleza.
-- **Por que o PN532 não precisa de expansor nenhum:** ele já é I2C nativo (2 fios,
-  endereço `0x24`) — compartilha o **mesmo barramento SDA/SCL** do expansor e do ESP32.
-  Não gasta GPIO extra pra ele.
+- `P0` = PREV, `P1` = NEXT, `P2` = SELECT, `P3`/`P4` = os outros 2 botões (define os nomes),
+  `P5`–`P7` sobram livres no próprio expansor (dá pra crescer sem gastar mais GPIO nenhum).
+- Cada botão: um lado no pino `Px` do PCF8574, outro no GND. O PCF8574 tem pull-up interno
+  fraco (~100 kΩ, quase-bidirecional) — funciona pra botão, mas se notar bounce/instabilidade,
+  reforça com 10 kΩ externo em cada `Px` (não no ESP32).
+- PN532: só `VCC`(3.3V)/`GND`/`SDA`/`SCL` no mesmo barramento, endereço `0x24` fixo.
 
-**Ligação:** expansor (`VCC` 3.3V / `GND` / `SDA` / `SCL`) no mesmo barramento do PN532;
-os 6 botões em pinos `P0.x`/`P1.x` do expansor, outro terminal no GND (usa o pull-up
-interno do chip; sem ele, 10 kΩ por botão nesses pinos, não no ESP32). Endereço padrão do
-MCP23017 (`0x20`) não colide com o `0x24` do PN532 — não precisa tocar nos jumpers A0–A2.
-
-**No firmware:** como o `ioExpander`/AW9523 já é código nativo do Bruce, se for por esse
-caminho o esforço é reaproveitar o padrão existente (`grep -rn "ioExpander\|IO_EXP" src/`)
-em vez de escrever leitura de botão do zero. Indo de MCP23017 (não nativo), é o mesmo tipo
-de trabalho que a seção 3.2 já fez pro RSSI: usar `Wire.h` pra ler os registros do chip e
-plugar isso onde o Bruce hoje faz `digitalRead()` dos botões.
+> Nota: o **AW9523** (usado nativamente pelo `ioExpander`/`IO_EXP_VIBRO` do próprio Bruce em
+> placas oficiais) continua sendo a opção "zero código novo" se algum dia importar um — mas
+> como você foi de PCF8574 (achado local, ver seção 8 Opção C), a leitura dos botões precisa
+> do mesmo tipo de hook que já fizemos no RSSI da seção 3.2: ler os 8 bits do PCF8574 via
+> `Wire.h` (`Wire.requestFrom(0x20, 1)`) e plugar isso onde o Bruce hoje faz `digitalRead()`
+> dos botões, em vez de reaproveitar um driver nativo pronto.
 
 ### 3.4 Módulo LoRa (RA-02, SX1278/SX1276) — recomendação e vantagens
 
@@ -218,9 +209,10 @@ Bruce fala **SPI direto com o chip** (`NSS`/`MOSI`/`MISO`/`SCK`/`DIO0`/`RST`), e
 
 **Fiação:** o Bruce já detecta automaticamente SPI compartilhado pra LoRa
 (`selectLoraSPIBus()`), então `SCK`/`MOSI`/`MISO` vão nos **mesmos fios** do CC1101/nRF24
-já existentes. Só precisa de **3 GPIOs novos**: `NSS` (CS dedicado), `DIO0` (IRQ) e `RST`.
-Como o pinout da seção 5 já está saturado, use a mesma saída da seção 3.1 (pino de strap
-GPIO 0/45, ou liberar um pino não essencial).
+já existentes (GPIO 12/11/13). ✅ **Pinos confirmados na seção 5**, liberados depois da
+consolidação dos botões/PN532 no I2C: `NSS` = **GPIO 7**, `DIO0` = **GPIO 47**, `RST` =
+**GPIO 42** (compartilhado com o TX do GPS — só funciona se o seu módulo RA-02 aceitar RST
+amarrado em 3.3V direto; ver ressalva na seção 5).
 
 **Vantagens de ter um:**
 1. **O CC1101 é literalmente surdo pra LoRa** — ele só faz FSK/OOK/ASK, não decodifica o
@@ -250,8 +242,9 @@ lê bateria assim, `BAT_PIN` no board config + `getBattery()` já converte pra %
 - Divisor **2× 100 kΩ** (1:1) do nó **BAT+** do TP4056 (a tensão crua da bateria, 3.0–4.2V)
   até o `BAT_PIN` — divide a tensão pela metade, já que a bateria vai até 4,2V e o ADC do
   ESP32 aguenta até 3,3V.
-- `BAT_PIN` = **GPIO 1** (ver seção 5 — precisa ser ADC1, GPIO 1–10; o ADC2, GPIO 11–20,
-  falha com o WiFi ativo, que no Bruce é o tempo todo).
+- `BAT_PIN` = **GPIO 6** (ver seção 5 — liberado depois que PREV/NEXT/SELECT foram pro
+  PCF8574; precisa ser ADC1, GPIO 1–10; o ADC2, GPIO 11–20, falha com o WiFi ativo, que no
+  Bruce é o tempo todo).
 - No firmware: lê com `analogReadMilliVolts()` e multiplica por 2 pra ter a tensão real.
 
 **Curva de conversão tensão → % (LiPo não é linear):**
@@ -351,54 +344,71 @@ compartilhado.
 
 ---
 
-## 5. Pinout de referência (ESP32-S3 N16R8)
+## 5. Pinout real (ESP32-S3 N16R8)
 
 Baseado em um build público praticamente idêntico ao seu
 ([arpitxp/Bruce-Smoochie-esp32](https://github.com/arpitxp/Bruce-Smoochie-esp32) —
-ESP32-S3 N16R8 + TFT 1,47" ST7789 172×320). **Ajuste conforme o seu `platformio.ini`/board config**;
-esses valores são um ponto de partida validado.
+ESP32-S3 N16R8 + TFT 1,47" ST7789 172×320) como ponto de partida. **Substituído abaixo pelo
+pinout real que você está usando na bancada** — esse é o que vale a partir de agora.
 
 ```
 DISPLAY (ST7789 SPI)          CC1101 (SPI)              nRF24L01+ (SPI)
-  SCLK ....... GPIO 12          MOSI ..... GPIO 17        MOSI .... GPIO 37
-  MOSI/SDA ... GPIO 11          MISO ..... GPIO 8         MISO .... GPIO 38
-  CS ......... GPIO 46          SCK ...... GPIO 18        SCK ..... GPIO 36
-  DC ......... GPIO 9           CSN ...... GPIO 15        CSN ..... GPIO 35
-  RST ........ GPIO 10          GDO0 ..... GPIO 16        CE ...... GPIO 7
-  BLK ........ GPIO 3           GDO2 ..... GPIO 6
+  SCK ........ GPIO 41          SCK ...... GPIO 12         SCK ..... GPIO 12 (compartilhado)
+  MOSI ....... GPIO 21          MOSI ..... GPIO 11         MOSI .... GPIO 11 (compartilhado)
+  DC ......... GPIO 4           MISO ..... GPIO 13         MISO .... GPIO 13 (compartilhado)
+  CS ......... GPIO 5           CS ....... GPIO 10         CE ...... GPIO 39
+  RST ........ GPIO 14          GDO0 ..... GPIO 9          CSN ..... GPIO 40
 
-PN532 (I2C)                   IR                        GPS NEO-6M (UART)
-  SDA ........ GPIO 2           RX (TSOP) . GPIO 4        RX ...... GPIO 39
-  SCL ........ GPIO 0 (strap*)  TX (KY-005) GPIO 5        TX ...... GPIO 40
+microSD (SPI)                 IR                        LED WS2812 ×8
+  CS ......... GPIO 15           RX ...... GPIO 1           DIN ..... GPIO 38
+  SCK ........ GPIO 18           TX ...... GPIO 2
+  MISO ....... GPIO 17
+  MOSI ....... GPIO 16
 
-microSD (SPI)                 BOTÕES                    BATERIA (ADC)
-  MOSI/CMD ... GPIO 41           UP ...... GPIO 14         BAT_PIN . GPIO 1
-  MISO/Dat0 .. GPIO 19           DOWN .... GPIO 13
-  SCK/CLK .... GPIO 20           LEFT .... GPIO 47
-  CS/Dat3 .... GPIO 42           RIGHT ... GPIO 21
-                                 SELECT .. GPIO 48
+I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
+  SDA ........ GPIO 48
+  SCL ........ GPIO 0 (strap*)
+    → PN532 (NFC), endereço 0x24
+    → PCF8574 (expansor 8 bits), endereço 0x20
+        P0 = PREV     P1 = NEXT     P2 = SELECT
+        P3 = (4º botão — define aqui)   P4 = (5º botão — define aqui)
+        P5–P7 = livres
+
+GPS NEO-6M (UART)             BATERIA (ADC)             LoRa (RA-02, SPI dedicado)
+  RX ......... GPIO 8            BAT_PIN .. GPIO 6         NSS ..... GPIO 7
+  TX ......... GPIO 42                                     DIO0 .... GPIO 47
+                                                             RST ..... GPIO 42 (compartilhado c/ GPS TX — ver nota)
 ```
 
-\* `PN532 SCL` foi movido pra **GPIO 0** (era GPIO 1) pra liberar o GPIO 1 — o único
-ADC1 "limpo" que sobrava — pro `BAT_PIN` da seção 3.5. Funciona porque barramento I2C
-ocioso fica em nível **alto** por causa do pull-up (mesmo sem o ESP32 fazer nada), que é
-exatamente o nível que o GPIO0 precisa ter no boot pra entrar em modo normal (LOW só
-entraria em modo gravação). Mesmo princípio que já usamos pro `CS`/`BLK` do display nos
-pinos de strap 46/3.
+\* `SCL` em **GPIO 0** funciona porque o barramento I2C ocioso fica em nível **alto** por
+causa do pull-up (mesmo sem o ESP32 fazer nada) — é exatamente o nível que o GPIO0 precisa
+ter no boot pra entrar em modo normal (LOW só entraria em modo gravação). Mesmo princípio
+que os pinos de strap do ESP32-S3 em geral toleram bem quando o periférico já nasce "alto".
 
-> ⚠️ **RGB_LED (barra WS2812) e o LoRa (NSS/DIO0/RST) ainda não têm GPIO livre** neste
-> pinout — todos os GPIOs 0–48 utilizáveis do ESP32-S3 N16R8 já estão ocupados pelos
-> módulos acima (ou reservados de fábrica: 26–32 = flash, 19/20 = USB nativo, 43/44 =
-> UART0), e o GPIO 0 e o GPIO 1, que eram os "coringas" que sobravam, já foram pro PN532
-> e pra bateria acima. Pra esses, a saída segue sendo:
-> 1. **Reaproveitar o pino de strap GPIO 45** (o último que sobra) pra um deles — o
->    display já usa os outros dois strap (GPIO 3 = BLK, GPIO 46 = CS) com sucesso.
-> 2. **Liberar um pino não essencial** pro resto — ex.: um dos botões de direção (se for
->    usar joystick analógico) ou o IR RX/TX (se não for montar infravermelho).
+**O que mudou e por quê:**
+- **Botões (PREV/NEXT/SELECT + os 2 que faltam) e o PN532 saíram dos GPIOs diretos e foram
+  pro PCF8574/I2C** (pedido seu — expansor de 8 bits: 5 botões usam P0–P4, sobram 3 pinos
+  no próprio PCF8574 pra futuro). PN532 entra no mesmo SDA/SCL, endereço `0x24` não colide
+  com o `0x20` padrão do PCF8574.
+- Isso **liberou 5 GPIOs** que antes eram PREV(6)/NEXT(7)/SELECT(47) e o hack
+  "GPS/NFC compartilhado, alterna por firmware" (8/42) — esse hack deixa de existir: GPS
+  agora tem UART fixo e dedicado (RX 8, TX 42), sem precisar alternar nada em firmware.
+- Dos 5 pinos liberados, sobraram 4 depois do GPS: usei um pra **bateria** (`BAT_PIN` =
+  **GPIO 6**, ADC1 limpo, não é strap — resolve a seção 3.5 sem precisar mexer em mais
+  nada) e os outros três pro **LoRa** (`NSS`=7, `DIO0`=47) — resolvendo o pino que faltava
+  na seção 3.4.
+- ⚠️ **RST do LoRa ficou sem pino livre de sobra** — sugeri reaproveitar o GPIO 42 (TX do
+  GPS) já que muitos módulos SX1276/SX1278 (como o RA-02) funcionam com **RST amarrado
+  direto em 3.3V** (reset por software) em vez de um GPIO dedicado — confirma se o seu
+  breakout específico permite isso antes de deixar assim; se não permitir, sobra reaproveitar
+  algum P5–P7 livre do PCF8574 fazendo bit-bang do reset por I2C (mais lento, mas o RST só é
+  usado na inicialização, não durante uso normal).
 
 Observações de fiação:
-- O CC1101, nRF24 e o SD podem **compartilhar o mesmo barramento SPI** (com CS separados)
-  para economizar pinos; no build acima eles usam SPIs/pinos separados para estabilidade.
+- **No seu pinout atual, CC1101 e nRF24 já compartilham SCK/MOSI/MISO (GPIO 12/11/13), cada
+  um com seu próprio CS** — é exatamente o esquema descrito na seção 5.1. O **SD fica em
+  barramento separado** (GPIO 15/18/17/16), o que é bom: evita justamente os bugs de CS
+  flutuante/init que a seção 5.1 descreve pra quando o SD também entra no mesmo bus.
 - Todos os módulos vão em **3.3V** (o ESP32 é 3.3V; nada de 5V nas linhas de sinal).
 - Alimente `nRF24 PA/LNA` e `GPS` por 3.3V bem filtrado (é onde o cap de 10 µF importa).
 
