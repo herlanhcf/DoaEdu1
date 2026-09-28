@@ -330,29 +330,43 @@ Esta é a parte que costuma faltar nos tutoriais. Divididos por finalidade.
 > valores de capacitor continuam válidos, mas os pinos e os resistores de botão/PN532 não.
 > **Use a seção 4.6 abaixo como referência atual.**
 
-### 4.6 Lista final consolidada — TODO capacitor, resistor, transistor, VCC/GND
+### 4.6 Lista final consolidada — TODO componente, VCC/GND
 
-Isso substitui a 4.1–4.5 como referência única e atual, já batendo com o pinout da seção 5
-(pós-redesenho: botões+PN532 no I2C, LoRa fora, bateria no GPIO6).
+Referência única e atual, batendo com o pinout da seção 5 (botões+PN532 no I2C, chave
+seletora de rádio, LoRa fora, bateria no GPIO 6). **Usando só o que você já comprou:**
+capacitor cerâmico **104 (= 100 nF)**, capacitor **10 µF**, resistores, e o módulo **IR
+KY-005** (já traz transistor+resistores → você NÃO precisa de transistor nem dos resistores
+do IR TX). Onde eu antes sugeria eletrolítico grande, agora está adaptado pro seu 10 µF.
 
-| # | Componente | VCC | GND | Capacitor(es) | Resistor(es)/Transistor |
-|---|-----------|-----|-----|----------------|--------------------------|
-| 1 | **Rail 5V** (saída do boost MT3608) | bateria/USB → boost | comum | 1× **10 µF** (ou 100 µF) eletrolítico na saída do boost | — |
-| 2 | **Rail 3.3V** (saída do regulador ESP32/DevKit) | 5V → regulador | comum | 1× **10 µF** (ou 100 µF) eletrolítico onde o 3.3V se divide pros módulos | — |
-| 3 | **ESP32-S3** (só se WROOM-1 cru, sem DevKit) | 3.3V | comum | 100 nF + 10 µF no pino 3V3 | 10 kΩ pull-up no EN + 1 µF EN→GND · 10 kΩ pull-up no GPIO0 + botão BOOT→GND |
-| 4 | **Display ST7789** | 3.3V | comum | 100 nF cerâmico VCC/GND | — |
-| 5 | **CC1101** ⚠️ | 3.3V | comum | 100 nF cerâmico direto nos pinos VCC/GND (solda um extra mesmo se o clone já tiver) | pull-up ~10 kΩ no CS (GPIO 10) |
-| 6 | **nRF24L01+** ⚠️ principal suspeito de ruído | 3.3V bem filtrado | comum | 100 nF cerâmico **+ 10 µF (ou 100 µF) eletrolítico dedicado**, direto no VCC/GND do módulo | pull-up ~10 kΩ no CSN (GPIO 40) |
-| 7 | **microSD** | 3.3V | comum | 100 nF cerâmico VCC/GND | pull-up ~10 kΩ no CS (GPIO 15) |
-| 8 | **IR RX** (TSOP38238/VS1838B) | 3.3V | comum | 100 nF cerâmico VCC/GND (filtra ruído — sensor sensível) | — |
-| 9 | **IR TX** — só se LED discreto (dispensa tudo isso se usar módulo KY-005) | 3.3V/5V no LED | GND no emissor do transistor | — | Transistor **2N2222** (ou PN2222A/S8050/2N7000) · 330 Ω na base · 47–100 Ω limitador do LED — ligação completa na seção 4.3 |
-| 10 | **Barra WS2812×8** | 5V (preferível) | comum | 100–1000 µF eletrolítico perto do 1º LED | ~300–500 Ω em série no `DIN` (GPIO 38), perto do pino do ESP32 |
-| 11 | **Barramento I2C** (SDA=GPIO48, SCL=GPIO7) — **um pull-up só pro barramento inteiro**, não um por dispositivo | — | — | — | **4,7 kΩ em SDA + 4,7 kΩ em SCL**, uma vez só; se PN532 e PCF8574 tiverem pull-up de fábrica nos dois, desabilita/remove de um deles (dois pull-ups em paralelo ficam fortes demais, ~2,3 kΩ efetivo) |
-| 12 | ↳ **PN532** (endereço 0x24) | 3.3V | comum | 100 nF cerâmico VCC/GND | — (pull-up já é o item 11) |
-| 13 | ↳ **PCF8574** (endereço 0x20) | 3.3V | comum | 100 nF cerâmico VCC/GND | A0/A1/A2 no GND (endereço 0x20, padrão) |
-| 14 | ↳ **6 botões** (UP/DOWN/LEFT/RIGHT/SELECT/BACK) em P0–P5 do PCF8574 | — | um lado de cada botão no GND | — | Pull-up interno do PCF8574 (~100 kΩ) já basta; só reforça com **10 kΩ por botão** em cada `Px` se notar bounce |
-| 15 | **GPS NEO-6M** | 3.3V | comum | 100 nF cerâmico VCC/GND | — |
-| 16 | **Bateria — divisor ADC** (BAT_PIN = GPIO 6) | BAT+ do TP4056 | comum | — | **2× 100 kΩ** em série do BAT+ até o GND, ponto médio no GPIO 6 |
+| # | Componente | VCC | GND | Capacitor (104 / 10 µF) | Resistor |
+|---|-----------|-----|-----|--------------------------|----------|
+| 1 | **Rail 5V** (saída do boost MT3608) | bat/USB → boost | comum | 1× **10 µF** na saída do boost | — |
+| 2 | **Rail 3.3V** (regulador ESP32/DevKit) | 5V → regulador | comum | 1× **10 µF** onde o 3.3V se divide pros módulos | — |
+| 3 | **ESP32-S3** (só se WROOM-1 cru, sem DevKit) | 3.3V | comum | 104 + 10 µF no 3V3 | 10 kΩ no EN · 10 kΩ no GPIO0 + botão BOOT→GND |
+| 4 | **Display ST7789** | 3.3V | comum | 1× **104** VCC/GND | — |
+| 5 | **CC1101** ⚠️ | 3.3V (**via chave**) | comum | 1× **104** direto nos pinos VCC/GND (solda extra mesmo se o clone já tiver) | 10 kΩ pull-up no CS (GPIO 10) |
+| 6 | **nRF24L01+** ⚠️ | 3.3V (**via chave**), bem filtrado | comum | 1× **104 + 1× 10 µF dedicado**, direto no VCC/GND do módulo | 10 kΩ pull-up no CSN (GPIO 40) |
+| 7 | **microSD** | 3.3V | comum | 1× **104** VCC/GND | 10 kΩ pull-up no CS (GPIO 15) |
+| 8 | **IR RX** (TSOP38238/VS1838B) | 3.3V | comum | 1× **104** VCC/GND (filtra ruído do sensor) | — |
+| 9 | **IR TX (módulo KY-005)** | 3.3V/5V | comum | — | **nada** — KY-005 já tem transistor+resistor embutidos; liga o `S` direto no GPIO 2 |
+| 10 | **Barra WS2812×8** | 5V | comum | 1× **10 µF** perto do 1º LED (é menos que o ideal de 100–1000 µF, mas ok pra brilho moderado; se piscar/glitch em branco 100%, some outro 10 µF em paralelo) | **330–470 Ω** em série no `DIN` (GPIO 38), perto do ESP32 |
+| 11 | **Barramento I2C** (SDA=48, SCL=7) — **um par de pull-up pro barramento todo**, não um por chip | — | — | — | **4,7 kΩ em SDA + 4,7 kΩ em SCL** (uma vez só). Se PN532 **e** PCF8574 já vierem com pull-up de fábrica, remove/desabilita de um deles (2 em paralelo = ~2,3 kΩ, forte demais) |
+| 12 | ↳ **PN532** (0x24) | 3.3V | comum | 1× **104** VCC/GND | — (pull-up é o item 11) |
+| 13 | ↳ **PCF8574** (0x20) | 3.3V | comum | 1× **104** VCC/GND | A0/A1/A2 → GND (fixa 0x20) |
+| 14 | ↳ **6 botões** (UP/DOWN/LEFT/RIGHT/SELECT/BACK) em P0–P5 | — | 1 lado de cada botão → GND | — | Pull-up interno do PCF8574 basta; **10 kΩ por botão** só se der bounce |
+| 15 | **GPS NEO-6M** | 3.3V bem filtrado | comum | 1× **104** VCC/GND | — |
+| 16 | **Bateria — divisor ADC** (BAT_PIN = GPIO 6) | BAT+ do TP4056 | comum | — | **2× resistor IGUAL em série** BAT+→GND, ponto médio no GPIO 6. Ideal **100 kΩ+100 kΩ** (gasta só ~16 µA); se o kit não tiver 100 k, qualquer par igual serve (ex. 10 k+10 k, gasta mais) |
+| 17 | **⚡ Chave seletora CC1101/nRF24** (SPDT) | comum = 3.3V; A→VCC CC1101; B→VCC nRF24 | GND dos rádios sempre ligado | — | — (item 5 e 6 já têm os 10 kΩ nos CS que a chave exige) |
+
+**Contagem rápida do que soldar (fora os módulos):**
+- **Capacitor 104 (100 nF):** ~9 un → itens 3,4,5,6,7,8,12,13,15 (1 por módulo).
+- **Capacitor 10 µF:** ~4 un → rail 5V, rail 3.3V, nRF24 dedicado, WS2812.
+- **Resistor 10 kΩ:** ~4 un → CS do CC1101, CSN do nRF24, CS do SD (+ EN/GPIO0 se WROOM cru).
+- **Resistor 4,7 kΩ:** 2 un → pull-up do I2C (se os breakouts não trouxerem).
+- **Resistor 330–470 Ω:** 1 un → série do WS2812.
+- **Resistor p/ divisor de bateria:** 2 un iguais (100 kΩ ideal).
+- **Chave SPDT:** 1 un → seletora de rádio.
+- **Transistor:** **nenhum** (KY-005 resolve o IR TX).
 
 **Se o problema for o CC1101 "escutando tudo" ao plugar a antena:** o primeiro suspeito é a
 linha **nRF24** (#6) — sem o cap eletrolítico dedicado, o ruído da alimentação sobe pro
@@ -367,14 +381,17 @@ passivo de LoRa (módulo descartado).
 
 ---
 
-## 5. Pinout real (ESP32-S3 N16R8)
+## 5. Pinout final (ESP32-S3 N16R8) — FIXO vs MANIPULÁVEL
 
-Baseado em um build público praticamente idêntico ao seu
-([arpitxp/Bruce-Smoochie-esp32](https://github.com/arpitxp/Bruce-Smoochie-esp32) —
-ESP32-S3 N16R8 + TFT 1,47" ST7789 172×320) como ponto de partida. **Substituído abaixo pelo
-pinout real que você está usando na bancada** — esse é o que vale a partir de agora.
+Inspirado na densidade de pinos do build de referência
+([arpitxp/Bruce-Smoochie-esp32 / ARTFOR](https://github.com/arpitxp/Bruce-Smoochie-esp32) —
+mesmo ESP32-S3 N16R8 + TFT 1,47"). Duas travas de projeto:
+
+- 🔒 **FIXO (já soldado, NÃO mexer):** Display, CC1101, nRF24, GPS.
+- 🔧 **MANIPULÁVEL (livre pra otimizar):** SD, IR, LED, NFC, botões, bateria, chave seletora.
 
 ```
+🔒 FIXO (soldado)
 DISPLAY (ST7789 SPI)          CC1101 (SPI)              nRF24L01+ (SPI)
   SCK ........ GPIO 41          SCK ...... GPIO 12         SCK ..... GPIO 12 (compartilhado)
   MOSI ....... GPIO 21          MOSI ..... GPIO 11         MOSI .... GPIO 11 (compartilhado)
@@ -382,24 +399,29 @@ DISPLAY (ST7789 SPI)          CC1101 (SPI)              nRF24L01+ (SPI)
   CS ......... GPIO 5           CS ....... GPIO 10         CE ...... GPIO 39
   RST ........ GPIO 14          GDO0 ..... GPIO 9          CSN ..... GPIO 40
 
-microSD (SPI)                 IR                        LED WS2812 ×8
-  CS ......... GPIO 15           RX ...... GPIO 1           DIN ..... GPIO 38
+GPS NEO-6M (UART)             ⚡ CHAVE SELETORA DE RÁDIO (SPDT, na linha VCC — NÃO gasta GPIO)
+  RX ......... GPIO 8            comum ...... 3.3V
+  TX ......... GPIO 42           posição A .. VCC do CC1101   (nRF24 desligado)
+                                 posição B .. VCC do nRF24    (CC1101 desligado)
+
+🔧 MANIPULÁVEL (otimizado)
+microSD (SPI)                 IR (módulo KY-005)        LED WS2812 ×8
+  CS ......... GPIO 15           RX ...... GPIO 1           DIN ..... GPIO 38 (+ R série 330–470 Ω)
   SCK ........ GPIO 18           TX ...... GPIO 2
   MISO ....... GPIO 17
-  MOSI ....... GPIO 16
+  MOSI ....... GPIO 16         BATERIA (ADC1)
+                                 BAT_PIN .. GPIO 6 (divisor 2× resistor igual)
 
-I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
+I2C — NFC + expansor de botões (1 barramento, 2 pinos, cobre TUDO)
   SDA ........ GPIO 48
   SCL ........ GPIO 7
     → PN532 (NFC), endereço 0x24
     → PCF8574 (expansor 8 bits), endereço 0x20 — 6 botões (D-pad + SELECT + BACK)
         P0 = UP       P1 = DOWN     P2 = LEFT
         P3 = RIGHT    P4 = SELECT   P5 = BACK
-        P6–P7 = livres
+        P6–P7 = livres (crescer sem gastar GPIO)
 
-GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem uso)
-  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 0 (⚠️ strap — evitar), GPIO 47
-  TX ......... GPIO 42
+LIVRES / RESERVA — GPIO 47 (limpo) · 0, 3, 45, 46 (strap) · 19, 20 (USB nativo)
 ```
 
 **⚠️ Correção importante — GPIO 0 NÃO é mais usado (era pra SCL, mudei pra GPIO 7):**
@@ -438,12 +460,51 @@ sem nenhum componente ligado nele, é o jeito mais seguro.
   **GPIO 7 e GPIO 47 livres em reserva** — nenhum módulo planejado usa eles agora.
 
 Observações de fiação:
-- **No seu pinout atual, CC1101 e nRF24 já compartilham SCK/MOSI/MISO (GPIO 12/11/13), cada
-  um com seu próprio CS** — é exatamente o esquema descrito na seção 5.1. O **SD fica em
-  barramento separado** (GPIO 15/18/17/16), o que é bom: evita justamente os bugs de CS
-  flutuante/init que a seção 5.1 descreve pra quando o SD também entra no mesmo bus.
+- **CC1101 e nRF24 compartilham SCK/MOSI/MISO (GPIO 12/11/13)**, cada um com seu CS. Com a
+  chave seletora (seção 5.2), só um deles fica energizado por vez — some de vez a briga de
+  barramento (init do CC1101, CS flutuante) descrita na seção 5.1.
+- O **SD fica em barramento SPI separado** (GPIO 15/18/17/16) — evita os bugs de CS
+  flutuante/init da seção 5.1.
 - Todos os módulos vão em **3.3V** (o ESP32 é 3.3V; nada de 5V nas linhas de sinal).
 - Alimente `nRF24 PA/LNA` e `GPS` por 3.3V bem filtrado (é onde o cap de 10 µF importa).
+
+### 5.2 Chave seletora CC1101 ⇄ nRF24 (energiza um rádio por vez)
+
+**Ideia:** os dois rádios continuam com SPI compartilhado (SCK 12 / MOSI 11 / MISO 13) e
+com seus CS/controle fixos (CC1101: CS 10, GDO0 9 · nRF24: CSN 40, CE 39). A chave só
+decide **qual dos dois recebe 3.3V**. Assim nunca há dois escravos energizados no mesmo
+barramento → zero contenção elétrica, e o bug de ordem de init do CC1101 deixa de importar
+(só existe o que está ligado).
+
+**Chave:** 1× **SPDT** (deslizante ou gangorra, 3 terminais — "liga-liga", não "liga-desliga").
+```
+        3.3V (rail)
+           │
+        [comum]            chave SPDT
+        /      \
+   [pos. A]   [pos. B]
+      │            │
+  VCC CC1101   VCC nRF24
+```
+- **Posição A:** CC1101 ligado, nRF24 sem energia (Sub-GHz ativo).
+- **Posição B:** nRF24 ligado, CC1101 sem energia (2.4 GHz ativo).
+- GND dos dois rádios continua **sempre ligado** (comum) — a chave mexe só no VCC.
+
+**Cuidados (com os componentes que você tem — 104, 10 µF, resistores):**
+1. **Pull-up de 10 kΩ em cada CS** (CC1101 CS=10 e nRF24 CSN=40) → mantém o rádio
+   desenergizado "deselecionado", pra ele não puxar o MISO compartilhado enquanto está sem
+   VCC.
+2. **Cada rádio mantém seu 104 (100 nF)** no VCC/GND, e o **nRF24 mantém o 10 µF dedicado** —
+   como só um liga por vez, o 10 µF do nRF24 dá conta do pico dele sozinho.
+3. **No firmware:** o Bruce vai detectar só o rádio energizado no boot. Se você **virar a
+   chave com o aparelho ligado**, reinicie (ou entre/saia do menu de RF) pra ele redetectar
+   — trocar a energia "por baixo" do firmware em runtime pode deixar o driver confuso até
+   um novo `begin()`.
+
+> Alternativa mais robusta (opcional, se sobrar uma chave DPDT): usar o 2º polo da DPDT pra
+> **desconectar também o MISO** do rádio desligado do barramento — elimina qualquer resíduo
+> de carga do pino MISO sem energia. Com SPDT + os pull-ups do item 1 já funciona na prática;
+> a DPDT é só o "cinto e suspensório".
 
 ### 5.1 Por que SCK/MOSI/MISO do CC1101 e do nRF24 não deveriam ir nos mesmos pinos do SD
 
