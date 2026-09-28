@@ -199,7 +199,14 @@ endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 0**.
 > `Wire.h` (`Wire.requestFrom(0x20, 1)`) e plugar isso onde o Bruce hoje faz `digitalRead()`
 > dos botões, em vez de reaproveitar um driver nativo pronto.
 
-### 3.4 Módulo LoRa (RA-02, SX1278/SX1276) — recomendação e vantagens
+### 3.4 Módulo LoRa — ❌ DESCARTADO (decisão do usuário, não vai entrar no build)
+
+> Ficava aqui a recomendação de módulo LoRa (RA-02) — **removido do plano** a pedido do
+> usuário. Os 3 GPIOs que seriam do LoRa (**7, 42 e 47**) estão livres em reserva na
+> seção 5. Texto abaixo fica só como referência caso mude de ideia depois.
+
+<details>
+<summary>Recomendação antiga (RA-02, SX1278/SX1276) — não vai ser usada</summary>
 
 **Recomendado: RA-02 (chip SX1278, compatível com o driver "SX1276" do Bruce), interface
 SPI.** ⚠️ **Não confundir com a linha Ebyte E32** (ex.: E32-433T20D) — esse é um módulo
@@ -208,11 +215,8 @@ Bruce fala **SPI direto com o chip** (`NSS`/`MOSI`/`MISO`/`SCK`/`DIO0`/`RST`), e
 **não funciona** com o Bruce. Evite qualquer módulo com "E32", "TTL" ou "AT command" no nome.
 
 **Fiação:** o Bruce já detecta automaticamente SPI compartilhado pra LoRa
-(`selectLoraSPIBus()`), então `SCK`/`MOSI`/`MISO` vão nos **mesmos fios** do CC1101/nRF24
-já existentes (GPIO 12/11/13). ✅ **Pinos confirmados na seção 5**, liberados depois da
-consolidação dos botões/PN532 no I2C: `NSS` = **GPIO 7**, `DIO0` = **GPIO 47**, `RST` =
-**GPIO 42** (compartilhado com o TX do GPS — só funciona se o seu módulo RA-02 aceitar RST
-amarrado em 3.3V direto; ver ressalva na seção 5).
+(`selectLoraSPIBus()`), então `SCK`/`MOSI`/`MISO` iriam nos mesmos fios do CC1101/nRF24
+(GPIO 12/11/13), com `NSS`/`DIO0`/`RST` nos GPIOs 7/47/42 que agora estão livres.
 
 **Vantagens de ter um:**
 1. **O CC1101 é literalmente surdo pra LoRa** — ele só faz FSK/OOK/ASK, não decodifica o
@@ -230,6 +234,8 @@ amarrado em 3.3V direto; ver ressalva na seção 5).
 interopera com Meshtastic, MeshCore nem gateways LoRaWAN genéricos**. Se o objetivo é
 farejar essas redes especificamente (não só ter alcance longo), o firmware hoje só dá
 visibilidade de RF crua (RSSI/presença de portadora), não decodifica o protocolo delas.
+
+</details>
 
 ### 3.5 Percentual de bateria (você usa TP4056, sem fuel gauge)
 
@@ -374,10 +380,8 @@ I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
         P3 = (4º botão — define aqui)   P4 = (5º botão — define aqui)
         P5–P7 = livres
 
-GPS NEO-6M (UART)             BATERIA (ADC)             LoRa (RA-02, SPI dedicado)
-  RX ......... GPIO 8            BAT_PIN .. GPIO 6         NSS ..... GPIO 7
-  TX ......... GPIO 42                                     DIO0 .... GPIO 47
-                                                             RST ..... GPIO 42 (compartilhado c/ GPS TX — ver nota)
+GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem LoRa)
+  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 7, 42, 47
 ```
 
 \* `SCL` em **GPIO 0** funciona porque o barramento I2C ocioso fica em nível **alto** por
@@ -393,16 +397,11 @@ que os pinos de strap do ESP32-S3 em geral toleram bem quando o periférico já 
 - Isso **liberou 5 GPIOs** que antes eram PREV(6)/NEXT(7)/SELECT(47) e o hack
   "GPS/NFC compartilhado, alterna por firmware" (8/42) — esse hack deixa de existir: GPS
   agora tem UART fixo e dedicado (RX 8, TX 42), sem precisar alternar nada em firmware.
-- Dos 5 pinos liberados, sobraram 4 depois do GPS: usei um pra **bateria** (`BAT_PIN` =
-  **GPIO 6**, ADC1 limpo, não é strap — resolve a seção 3.5 sem precisar mexer em mais
-  nada) e os outros três pro **LoRa** (`NSS`=7, `DIO0`=47) — resolvendo o pino que faltava
-  na seção 3.4.
-- ⚠️ **RST do LoRa ficou sem pino livre de sobra** — sugeri reaproveitar o GPIO 42 (TX do
-  GPS) já que muitos módulos SX1276/SX1278 (como o RA-02) funcionam com **RST amarrado
-  direto em 3.3V** (reset por software) em vez de um GPIO dedicado — confirma se o seu
-  breakout específico permite isso antes de deixar assim; se não permitir, sobra reaproveitar
-  algum P5–P7 livre do PCF8574 fazendo bit-bang do reset por I2C (mais lento, mas o RST só é
-  usado na inicialização, não durante uso normal).
+- Dos 5 pinos liberados, sobrou um pra **bateria** (`BAT_PIN` = **GPIO 6**, ADC1 limpo, não é
+  strap — resolve a seção 3.5 sem precisar mexer em mais nada).
+- **LoRa descartado** (decisão do usuário — ver seção 3.4, marcada como não planejada). Os
+  outros 3 pinos que sobraram do hack GPS/NFC (**GPIO 7, 42 e 47**) ficam **livres em
+  reserva** — nenhum módulo planejado usa eles agora.
 
 Observações de fiação:
 - **No seu pinout atual, CC1101 e nRF24 já compartilham SCK/MOSI/MISO (GPIO 12/11/13), cada

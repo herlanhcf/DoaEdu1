@@ -43,12 +43,25 @@ Legenda: ✅ já funciona com o que você tem · 🔧 nativo do ESP32-S3, não p
 | iBeacon Spoof | Transmite beacons iBeacon customizados |
 | Ninebot BLE Tuning | Interage via BLE UART com patinetes Ninebot/Xiaomi (hoje só destrava velocidade máx.) |
 | Bad BLE | Vira teclado Bluetooth, injeta Ducky Script sem fio |
-| BLE Security Suite | Quick Vuln Scan, Deep Device Profiling, ataques encadeados (HFP→HID→FastPair) — fora da versão Lite |
-| BLE Tracker Detector 🚧 | Detecta AirTag/Samsung SmartTag/Tile/óculos smart (Meta Ray-Ban) desconhecidos por perto — feature comunitária (PR do TurbulentGoat), confirme se já está na sua versão antes de contar com ela |
+| BLE Security Suite | Ver detalhamento abaixo — só na versão **Full** (não vem na Lite) |
+| **BLE Tracker Detector** ✅ | Menu **Bluetooth > BLE**. Detecta AirTag/Samsung SmartTag/Tile/óculos smart (Meta Ray-Ban) por perto, com estimativa de distância (perto/médio/longe pelo RSSI) e **alerta de "seguindo você"**: o card do tracker fica laranja depois de um tempo por perto e vermelho se continuar — pensado pra detectar stalking. Mergeado em **23/set/2026** — **precisa de firmware compilado depois dessa data**, se não aparecer no menu é só atualizar |
+
+### BLE Security Suite, detalhado
+Plataforma de teste de segurança BLE só na versão **Full** do Bruce (não existe na Lite):
+- **Quick Vulnerability Scan** — testa vulnerabilidades específicas conhecidas (ex.: HFP
+  CVE-2025-36911, falhas de FastPair) num dispositivo alvo.
+- **Deep Device Profiling** — enumera todos os serviços/characteristics GATT do alvo (perfil
+  completo do que o dispositivo expõe por BLE).
+- **FastPair Suite / HFP Suite / Audio Suite / HID Suite** — conjuntos de ataque específicos
+  pra cada perfil BLE (pareamento rápido Google/Android, handsfree de fone/headset, áudio,
+  emulação de teclado).
+- **Ataques encadeados** — tenta automaticamente HFP → HID → FastPair, conforme os serviços
+  que o alvo expõe, sem precisar escolher manualmente qual ataque tentar primeiro.
+- Também inclui DoS avançado e entrega de payload.
 
 > ⚠️ **Detector de skimmer Bluetooth (leitor de cartão clonado escondido) ainda NÃO existe no
-> Bruce** — é só um pedido de feature em aberto (issues #1088/#1224), não confie que essa
-> função já está disponível.
+> Bruce** — é só um pedido de feature em aberto (issues #1088/#1224), diferente do Tracker
+> Detector acima. Não confie que essa função já está disponível.
 
 ## 📻 Sub-GHz — ✅ com seu CC1101
 | Função | O que faz |
@@ -67,7 +80,7 @@ Legenda: ✅ já funciona com o que você tem · 🔧 nativo do ESP32-S3, não p
 | Jammer | Interferência (WiFi, Bluetooth, protocolos proprietários 2.4 GHz) |
 | Mousejack | Sniffing de mouse/teclado wireless vulnerável (dongle não criptografado) |
 
-## 📶 LoRa — 🟡 precisa do módulo RA-02 (recomendado na seção 3.4 do doc de hardware, ainda não confirmado instalado)
+## 📶 LoRa — ❌ descartado (decisão do usuário, não vai entrar no build)
 | Função | O que faz |
 |---|---|
 | Chat | Texto ponto-a-ponto de longo alcance, só entre dispositivos Bruce (não interopera com Meshtastic/MeshCore/LoRaWAN) |
@@ -163,8 +176,8 @@ precisar de nada extra.
 - **Faltava o Bruteforce de Sub-GHz** (código fixo, De Bruijn) — adicionado na tabela de Sub-GHz.
 - **Faltavam**: Serial CLI, WebUI (parte de controle remoto), App companion (Screen Mirror),
   Music Player/Tone, Boot Animation, e os apps/jogos comunitários do JS Interpreter.
-- **BLE Tracker Detector** (AirTag/SmartTag/Tile) existe como PR comunitário — confirme se já
-  chegou na sua versão antes de contar com ela.
+- **BLE Tracker Detector** (AirTag/SmartTag/Tile) — confirmado **mergeado em 23/set/2026**,
+  menu Bluetooth > BLE. Atualize o firmware se não aparecer.
 - **Skimmer detector Bluetooth NÃO existe** ainda — é só pedido de feature em aberto, não
   confunda com o Tracker Detector acima (são coisas diferentes).
 
