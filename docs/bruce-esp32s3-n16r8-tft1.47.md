@@ -72,10 +72,12 @@ Todos abaixo são opcionais individualmente — adicione conforme as funções q
 | 6 | **GPS NEO-6M / NEO-8M** | Wardriving, geotag | UART | — |
 | 7 | **Leitor microSD** | Armazenar scripts, dumps, capturas | SPI | — |
 | 8 | **Barra LED RGB endereçável (WS2812-8)** | Indicador visual / efeitos de notificação | 1 GPIO (protocolo próprio, via RMT) | — |
+| 9 | **LoRa (RA-02, chip SX1278/SX1276)** | Longo alcance (chat Bruce-a-Bruce), único jeito de "enxergar" sinal LoRa no ar | SPI (compartilha SCK/MOSI/MISO com CC1101/nRF24) + NSS/DIO0/RST dedicados | 433/868/915 MHz |
 
 ### Antenas (não esqueça)
 - **CC1101:** antena mola/helicoidal ou fio ¼-onda para a banda escolhida (ex.: ~17,3 cm p/ 433 MHz).
 - **nRF24 PA/LNA:** antena **SMA 2.4 GHz** (a versão PA/LNA precisa de antena para render).
+- **LoRa RA-02:** antena mola/helicoidal ¼-onda da banda escolhida (geralmente acompanha o módulo).
 - **GPS NEO-6M:** antena cerâmica ativa (geralmente acompanha o módulo).
 - **ESP32-S3:** antena de PCB já integrada no WROOM-1 (ou conector u.FL na versão -U).
 
@@ -205,6 +207,37 @@ caminho o esforço é reaproveitar o padrão existente (`grep -rn "ioExpander\|I
 em vez de escrever leitura de botão do zero. Indo de MCP23017 (não nativo), é o mesmo tipo
 de trabalho que a seção 3.2 já fez pro RSSI: usar `Wire.h` pra ler os registros do chip e
 plugar isso onde o Bruce hoje faz `digitalRead()` dos botões.
+
+### 3.4 Módulo LoRa (RA-02, SX1278/SX1276) — recomendação e vantagens
+
+**Recomendado: RA-02 (chip SX1278, compatível com o driver "SX1276" do Bruce), interface
+SPI.** ⚠️ **Não confundir com a linha Ebyte E32** (ex.: E32-433T20D) — esse é um módulo
+"caixa preta" com **UART**/AT-commands, sem os pinos SPI expostos; o driver de LoRa do
+Bruce fala **SPI direto com o chip** (`NSS`/`MOSI`/`MISO`/`SCK`/`DIO0`/`RST`), então o E32
+**não funciona** com o Bruce. Evite qualquer módulo com "E32", "TTL" ou "AT command" no nome.
+
+**Fiação:** o Bruce já detecta automaticamente SPI compartilhado pra LoRa
+(`selectLoraSPIBus()`), então `SCK`/`MOSI`/`MISO` vão nos **mesmos fios** do CC1101/nRF24
+já existentes. Só precisa de **3 GPIOs novos**: `NSS` (CS dedicado), `DIO0` (IRQ) e `RST`.
+Como o pinout da seção 5 já está saturado, use a mesma saída da seção 3.1 (pino de strap
+GPIO 0/45, ou liberar um pino não essencial).
+
+**Vantagens de ter um:**
+1. **O CC1101 é literalmente surdo pra LoRa** — ele só faz FSK/OOK/ASK, não decodifica o
+   espalhamento espectral chirp do LoRa de jeito nenhum. Sem um chip SX127x/SX126x de
+   verdade, o Bruce fica 100% cego pra qualquer coisa em LoRa no ar (sensores LoRaWAN,
+   nós Meshtastic, telemetria privada) — nem RSSI ele lê direito. É o motivo mais forte
+   pra ter o módulo.
+2. **Alcance muito maior** que o CC1101 — quilômetros em linha de visão, mesmo em baixa
+   potência.
+3. **Chat nativo do Bruce** — mensagem de texto ponto-a-ponto de longo alcance entre dois
+   Bruce, sem WiFi/celular.
+4. Consumo baixíssimo em modo de escuta.
+
+⚠️ **Limitação:** o Chat do Bruce é **proprietário** — só conversa com outro Bruce, **não
+interopera com Meshtastic, MeshCore nem gateways LoRaWAN genéricos**. Se o objetivo é
+farejar essas redes especificamente (não só ter alcance longo), o firmware hoje só dá
+visibilidade de RF crua (RSSI/presença de portadora), não decodifica o protocolo delas.
 
 ---
 
@@ -517,6 +550,18 @@ acesso automático às duas lojas ficou bloqueado ao tentar conferir ao vivo.)*
 > pull-up do barramento I2C e o regulador, então não precisa somar mais nada da seção 4 pra
 > ele. Ele fica no mesmo barramento SDA/SCL do PN532 (endereço padrão `0x20`, não colide
 > com o `0x24` do PN532 — não precisa mexer nos jumpers de endereço).
+
+### Opção D — Módulo LoRa (seção 3.4)
+
+| Loja | Produto | Obs. | Link |
+|------|---------|------|------|
+| AutoCore Robótica | **Módulo Transceptor Longo Alcance LoRa SX1276 433MHz** (RA-02) | SPI — o certo pro Bruce | /modulo-transceptor-longo-alcance-lora-sx1276-433mhz |
+| SmartKits | **Módulo Transceptor LoRa 433MHz SX1278 com Antena** | SPI — o certo pro Bruce | /modulo-transceptor-lora-433mhz-sx1278-com-antena |
+
+> ⚠️ As duas lojas também vendem a linha **Ebyte E32** (ex.: `E32-433T20D`,
+> `E32-TTL-100`) — **não é esse**. O E32 é UART/AT-commands, sem os pinos SPI que o Bruce
+> precisa (`NSS`/`MOSI`/`MISO`/`SCK`/`DIO0`/`RST`). Confirma que o produto lista esses
+> pinos SPI antes de comprar.
 
 ## Fontes
 - Bruce (repositório principal): https://github.com/pr3y/Bruce
