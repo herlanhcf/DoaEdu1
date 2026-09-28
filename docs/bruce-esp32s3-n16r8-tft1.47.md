@@ -127,6 +127,62 @@ barra nativamente, sem precisar mexer em mais nada.
   - Como só usa 1 GPIO e tem `OUT` pra encadear, dá pra expandir depois (mais LEDs,
     iluminação de case) sem gastar GPIO extra.
 
+### 3.2 Customização: barra de nível (RSSI) tipo "carregando" no Copy/Spectrum
+
+Sim — ligando no `IN`, cada um dos 8 LEDs é **endereçável individualmente**. O Bruce já
+guarda a fita inteira num array `CRGB leds[LED_COUNT];` (arquivo `src/core/led_control.cpp`)
+e escreve nele por índice (`leds[i] = cor;` ... `FastLED.show();`) — é exatamente esse
+padrão que o `ledEffectTask()` usa hoje pros efeitos prontos (Chase, Color Wheel etc.).
+**Não existe** um efeito "barra de nível" pronto no firmware — pra ter "acende verde→vermelho
+conforme detecta sinal" é preciso adicionar uma função nova e chamá-la de dentro da tela
+de Copy/Spectrum do CC1101. Roteiro:
+
+**1) Função de barra (nova, em `led_control.h`/`.cpp`, do lado das outras `setLed*`):**
+```cpp
+// led_control.h
+void setLedBar(uint8_t level, uint8_t maxLevel);
+
+// led_control.cpp
+void setLedBar(uint8_t level, uint8_t maxLevel) {
+    if (level > maxLevel) level = maxLevel;
+    int litCount = map(level, 0, maxLevel, 0, LED_COUNT);
+    for (int i = 0; i < LED_COUNT; i++) {
+        if (i < litCount) {
+            uint8_t hue = map(i, 0, LED_COUNT - 1, 96, 0); // 96=verde, 0=vermelho (escala FastLED)
+            leds[i] = CHSV(hue, 255, 255);
+        } else {
+            leds[i] = CRGB::Black;
+        }
+    }
+    FastLED.show();
+}
+```
+
+**2) Chamar isso a partir do RSSI que o Copy já lê.** O jeito mais natural de "acende
+conforme detecta" é usar o **RSSI instantâneo** do CC1101 como nível (é um VU-meter de
+força de sinal — sobe quando pega o sinal, desce quando não tem nada, igual um medidor de
+bateria/sinal de celular). O laço de scan/copy do CC1101 já lê RSSI pra decidir "tem sinal
+aqui" — procura no seu checkout do firmware (`grep -rn "getRssi\|Rssi\|rssi" src/modules/rf/`)
+onde esse valor é lido e chama `setLedBar()` logo depois, mapeando a faixa de RSSI que a
+tela já usa hoje pra 0–8:
+```cpp
+int rssi = ELECHOUSE_cc1101.getRssi();            // ajuste pro nome real na sua versão
+int nivel = map(constrain(rssi, RSSI_MIN, RSSI_MAX), RSSI_MIN, RSSI_MAX, 0, LED_COUNT);
+setLedBar(nivel, LED_COUNT);
+```
+(`RSSI_MIN`/`RSSI_MAX` = os mesmos limites que a tela de Copy já usa pra decidir "sinal
+fraco" vs "forte" — copia esses valores de lá em vez de inventar novos.)
+
+**3) Cuidado com o `ledEffectTask` brigando pelo array.** A `setLedColor()` já tem um
+padrão de "modo preview" (`isPreviewLed`/`previewLedEffect`) pra suspender o efeito normal
+enquanto mostra outra coisa — reusa essa mesma ideia: liga uma flag tipo `isRfLedActive`
+ao entrar na tela de Copy (e desliga ao sair) pra impedir que a task de efeito (rodando em
+background) sobrescreva a barra a cada animação e cause flicker.
+
+Isso é desenvolvimento de firmware de verdade (não é opção de menu) — exige recompilar via
+PlatformIO com essa alteração. Fora do RSSI, dá pra adaptar o mesmo `setLedBar()` pra outras
+métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
+
 ---
 
 ## 4. Passivos: CAPACITORES, RESISTORES e TRANSISTOR
