@@ -129,6 +129,32 @@ Esta é a parte que costuma faltar nos tutoriais. Divididos por finalidade.
 - Regulador 3.3V (ex.: **AMS1117-3.3** ou, melhor para bateria, um **TLV1117/ME6211/HT7333**) + seus caps de entrada/saída.
 - Conversor USB-serial (CH340/CP2102) se quiser gravar/depurar sem USB nativo — o S3 tem USB nativo, então geralmente dispensa.
 
+### 4.5 Checklist "por canto" — onde vai cada capacitor/resistor
+
+Consolidado de onde soldar cada passivo, módulo por módulo. Isso é o principal suspeito
+quando o **CC1101 só capta "sinal em todo lugar" depois de colocar a antena** (sintoma
+clássico de ruído entrando pela alimentação/RF, não de bug de firmware — ver seção 5.1):
+
+| Local | Capacitor | Resistor |
+|-------|-----------|----------|
+| **Rail 5V** (saída do boost MT3608) | 1× **10 µF** (ou 100 µF) eletrolítico, o mais perto possível da saída do boost | — |
+| **Rail 3.3V** (saída do regulador do ESP32/DevKit) | 1× **10 µF** (ou 100 µF) eletrolítico, perto de onde o 3.3V se divide pros módulos | — |
+| **ESP32-S3** (só se módulo cru WROOM-1, sem DevKit) | 100 nF + 10 µF no pino 3V3 | 10 kΩ pull-up no EN + 10 kΩ pull-up no GPIO0 |
+| **CC1101** ⚠️ | **100 nF cerâmico direto nos pinos VCC/GND do módulo** — solda um extra mesmo se a placa clone já tiver um, o de fábrica costuma ser fraco/mal posicionado | pull-up ~10 kΩ no CSN (evita flutuar no boot/bus compartilhado) |
+| **nRF24L01+** ⚠️ (principal suspeito de ruído) | 100 nF cerâmico VCC/GND **+ 10 µF (ou 100 µF) eletrolítico dedicado**, soldado direto entre VCC e GND do módulo — sem esse cap grande ele "sujeita" a alimentação inteira | pull-up ~10 kΩ no CSN |
+| **PN532** (I²C) | 100 nF cerâmico VCC/GND | 4,7 kΩ em SDA + 4,7 kΩ em SCL (só se o breakout não já trouxer) |
+| **Leitor microSD** | 100 nF cerâmico VCC/GND | 10 kΩ pull-up em CS, Dat1 e Dat2 |
+| **Botões de navegação** | — | 10 kΩ pull-up por botão (dispensável com `INPUT_PULLUP` interno) |
+| **IR TX** (só LED discreto, sem KY-005) | — | 330 Ω na base do transistor 2N2222 + 47–100 Ω limitador do LED |
+
+**Se o problema for justamente o CC1101 "escutando tudo" ao plugar a antena:** o primeiro
+suspeito é a linha **nRF24** desta tabela — sem o cap eletrolítico dedicado nele, o ruído
+da alimentação sobe pro CC1101 e o RSSI dele passa a disparar com qualquer ruído (é um
+sintoma clássico do chip: sem antena não aparece porque o front-end RF está "surdo",
+com antena ele fica sensível ao ruído que estava ali o tempo todo). Depois disso, confira
+o 100 nF extra no CC1101 e a distância do fio da antena em relação aos fios do SPI
+compartilhado.
+
 ---
 
 ## 5. Pinout de referência (ESP32-S3 N16R8)
