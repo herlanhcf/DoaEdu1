@@ -177,6 +177,35 @@ Isso é desenvolvimento de firmware de verdade (não é opção de menu) — exi
 PlatformIO com essa alteração. Fora do RSSI, dá pra adaptar o mesmo `setLedBar()` pra outras
 métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
 
+### 3.3 Expansor de I/O pra 6 botões + PN532 (economizar GPIO)
+
+Com o pinout da seção 5 já saturado (ver aviso lá), a saída pra caber **6 botões + o PN532**
+sem brigar por GPIO é um **expansor I2C**:
+
+- **Recomendação ideal: AW9523.** É o chip que o **próprio firmware Bruce já usa
+  nativamente** (o objeto `ioExpander` do código-fonte já controla pelo menos o motor de
+  vibração — `IO_EXP_VIBRO` — nas placas oficiais Cardputer/StickC). 16 canais, pull-up
+  configurável, interrupt-on-change. Vantagem real: reaproveita driver que já existe no
+  Bruce em vez de escrever um do zero. **Não é achado nas lojas de Fortaleza** — só
+  importado (Adafruit/AliExpress).
+- **Alternativa disponível localmente: MCP23017.** 16 canais, GPIO de verdade (não
+  quase-bidirecional como o PCF8574), pull-up interno, interrupt-on-change — o mais
+  próximo do AW9523 em capacidade. Ver seção 8 (Opção C) pra onde comprar em Fortaleza.
+- **Por que o PN532 não precisa de expansor nenhum:** ele já é I2C nativo (2 fios,
+  endereço `0x24`) — compartilha o **mesmo barramento SDA/SCL** do expansor e do ESP32.
+  Não gasta GPIO extra pra ele.
+
+**Ligação:** expansor (`VCC` 3.3V / `GND` / `SDA` / `SCL`) no mesmo barramento do PN532;
+os 6 botões em pinos `P0.x`/`P1.x` do expansor, outro terminal no GND (usa o pull-up
+interno do chip; sem ele, 10 kΩ por botão nesses pinos, não no ESP32). Endereço padrão do
+MCP23017 (`0x20`) não colide com o `0x24` do PN532 — não precisa tocar nos jumpers A0–A2.
+
+**No firmware:** como o `ioExpander`/AW9523 já é código nativo do Bruce, se for por esse
+caminho o esforço é reaproveitar o padrão existente (`grep -rn "ioExpander\|IO_EXP" src/`)
+em vez de escrever leitura de botão do zero. Indo de MCP23017 (não nativo), é o mesmo tipo
+de trabalho que a seção 3.2 já fez pro RSSI: usar `Wire.h` pra ler os registros do chip e
+plugar isso onde o Bruce hoje faz `digitalRead()` dos botões.
+
 ---
 
 ## 4. Passivos: CAPACITORES, RESISTORES e TRANSISTOR
@@ -465,6 +494,29 @@ Categorias úteis: Resistores `/resistores` · Capacitores `/capacitores` · Tra
 > Dica: para o desacoplamento (100 nF) prefira **cerâmico (104)** ao poliéster.
 > A loja também tem o **Capacitor Poliéster 100nF/250V** (`/capacitor-poliester-100nf-250v`),
 > que funciona, mas o cerâmico é o ideal junto de cada módulo.
+
+### Opção C — Expansor I2C pra 6 botões + NFC (seção 3.3)
+
+O **AW9523** (o expansor que o próprio Bruce já usa nativamente) não é achado nem na
+AutoCore nem na SmartKits — é item de importação (Adafruit/AliExpress). Nas duas lojas
+de Fortaleza, o mais próximo disponível é o **MCP23017** (16 canais, o de maior recomendação
+depois do AW9523: GPIO de verdade, pull-up interno, interrupt-on-change):
+
+| Loja | Produto | Preço ref. | Link |
+|------|---------|-----------|------|
+| AutoCore Robótica | **Módulo Expansor de Portas Digitais I2C 16 Bits MCP23017** (pronto, já montado) | ~R$ 44,90 | /modulo-expansor-de-portas-digitais-i2c-16-bits-mcp23017 |
+| AutoCore Robótica | **MCP23017 — CI avulso** (só o chip, monta você mesmo) | ~R$ 32,90 | /mcp23017-ci-expansor-de-porta-entrada-saida-i2c |
+| AutoCore Robótica | **Módulo Expansor de I/O I2C PCF8574** (alternativa mais barata, 8 canais) | ~R$ 13,90 | /modulo-expansor-de-io-i2c-pcf8574 |
+| SmartKits | **Módulo MCP23017 Expansor de Portas Bidirecional 16 Bits** | conferir no site | /modulo-mcp23017-expansor-de-portas-bidirecional |
+| SmartKits | **Módulo Expansor de Portas I2C 8 Bits PCF8574** | conferir no site | /modulo-expansor-de-portas-i2c-8-bits-pcf8574 |
+
+*(Preços de referência coletados via busca; confirme disponibilidade/preço direto no site — o
+acesso automático às duas lojas ficou bloqueado ao tentar conferir ao vivo.)*
+
+> Pega o **módulo já montado** da AutoCore (não o CI avulso) — já vem com os resistores de
+> pull-up do barramento I2C e o regulador, então não precisa somar mais nada da seção 4 pra
+> ele. Ele fica no mesmo barramento SDA/SCL do PN532 (endereço padrão `0x20`, não colide
+> com o `0x24` do PN532 — não precisa mexer nos jumpers de endereço).
 
 ## Fontes
 - Bruce (repositório principal): https://github.com/pr3y/Bruce
