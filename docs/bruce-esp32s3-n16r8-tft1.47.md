@@ -71,12 +71,61 @@ Todos abaixo são opcionais individualmente — adicione conforme as funções q
 | 5 | **IR RX** (TSOP38238 / VS1838B) | Receber/gravar códigos IR | GPIO | 38 kHz |
 | 6 | **GPS NEO-6M / NEO-8M** | Wardriving, geotag | UART | — |
 | 7 | **Leitor microSD** | Armazenar scripts, dumps, capturas | SPI | — |
+| 8 | **Barra LED RGB endereçável (WS2812-8)** | Indicador visual / efeitos de notificação | 1 GPIO (protocolo próprio, via RMT) | — |
 
 ### Antenas (não esqueça)
 - **CC1101:** antena mola/helicoidal ou fio ¼-onda para a banda escolhida (ex.: ~17,3 cm p/ 433 MHz).
 - **nRF24 PA/LNA:** antena **SMA 2.4 GHz** (a versão PA/LNA precisa de antena para render).
 - **GPS NEO-6M:** antena cerâmica ativa (geralmente acompanha o módulo).
 - **ESP32-S3:** antena de PCB já integrada no WROOM-1 (ou conector u.FL na versão -U).
+
+### 3.1 Barra de LED RGB endereçável (WS2812-8)
+
+Módulo com 8× LED WS2812 (cada um com o chip driver embutido), 1 fio de dado por barra
+(`IN`/`OUT` pra encadear mais barras em série), controlado por **1 único GPIO** do ESP32.
+
+**Ligação:**
+- `5V` → **rail de 5V** (do boost), não o 3.3V do ESP32 — WS2812 funciona melhor/mais estável em 5V.
+- `GND` → GND comum.
+- `IN` (dado) → 1 GPIO livre do ESP32. Nível lógico 3.3V do ESP32 costuma acender o WS2812
+  normalmente em fios curtos; se der cor errada/LED não acende, o fix padrão é um
+  **resistor ~300–500 Ω em série no fio de dado**, perto do pino do ESP32 (ver seção 4.5).
+- `OUT` fica livre — só usa se quiser encadear outra barra/fita depois.
+- **Orçamento de corrente:** 8 LEDs WS2812 em branco/100% de brilho chegam a **~480 mA**
+  (60 mA/LED). Isso **soma** ao consumo do CC1101+nRF24+GPS já discutido — reforça ainda
+  mais a importância dos capacitores de reservatório nos rails 5V/3.3V e do teste de
+  tensão sob carga (ver troubleshooting do "curto intermitente" mais acima): quanto mais
+  módulos ligados ao mesmo tempo, mais perto do limite da proteção da bateria/boost você
+  fica.
+
+**Como habilitar no firmware Bruce:**
+No seu board config custom (mesmo arquivo onde você define o pinout do display/módulos
+pra compilar via PlatformIO), defina:
+```cpp
+#define RGB_LED   <GPIO escolhido>   // pino de dado (IN) da barra
+#define NUM_LEDS  8                  // WS2812-8 = 8 LEDs
+```
+O Bruce já usa a lib **FastLED** internamente (com o periférico **RMT** do ESP32 pra
+timing, sem travar a UI) — depois de definir o pino, o menu **LED** (e os comandos via
+serial `led r|g|b`, `led rgb`, `led hex`, `led brightness`, `led effect`) já controlam a
+barra nativamente, sem precisar mexer em mais nada.
+
+**Possibilidades de uso:**
+- **Pronto, nativo do firmware (menu LED / comandos serial):**
+  - Cor sólida customizável (RGB ou hex).
+  - Efeitos prontos: *Breathe* (respiração), *Color Cycle*, *Color Wheel*, *Chase*,
+    *Chase Tail* — com velocidade e direção ajustáveis.
+  - Brilho de 0–100% e "LED blink" como notificação genérica de eventos do sistema.
+  - Indicador visual "de bancada" — dá pra deixar um efeito rodando só de estética,
+    ou usar brilho baixo fixo como "power on" LED.
+- **Customização (exige editar/estender o firmware, não é automático):**
+  - Vincular cor/efeito a um estado específico (ex.: vermelho piscando enquanto o
+    jammer ou o CC1101 TX está ativo, verde parado quando ocioso) — o `led` já expõe os
+    comandos, falta só chamar isso nos pontos certos do código das telas de RF.
+  - Indicador de força de sinal (RSSI do Spectrum/Sub-GHz) mapeado pra brilho/cor —
+    também precisa de um pequeno hook no código, não vem pronto.
+  - Como só usa 1 GPIO e tem `OUT` pra encadear, dá pra expandir depois (mais LEDs,
+    iluminação de case) sem gastar GPIO extra.
 
 ---
 
@@ -146,6 +195,7 @@ clássico de ruído entrando pela alimentação/RF, não de bug de firmware — 
 | **Leitor microSD** | 100 nF cerâmico VCC/GND | 10 kΩ pull-up em CS, Dat1 e Dat2 |
 | **Botões de navegação** | — | 10 kΩ pull-up por botão (dispensável com `INPUT_PULLUP` interno) |
 | **IR TX** (só LED discreto, sem KY-005) | — | 330 Ω na base do transistor 2N2222 + 47–100 Ω limitador do LED |
+| **Barra WS2812 (RGB)** | 100–1000 µF eletrolítico entre VCC/GND, bem perto do 1º LED da barra (absorve o pico de corrente de todos os LEDs acendendo juntos) | ~300–500 Ω em série no fio de dado (`IN`), perto do pino do ESP32 |
 
 **Se o problema for justamente o CC1101 "escutando tudo" ao plugar a antena:** o primeiro
 suspeito é a linha **nRF24** desta tabela — sem o cap eletrolítico dedicado nele, o ruído
@@ -184,6 +234,17 @@ microSD (SPI)                 BOTÕES
   CS/Dat3 .... GPIO 42           RIGHT ... GPIO 21
                                  SELECT .. GPIO 48
 ```
+
+> ⚠️ **Sem GPIO livre para a barra WS2812 (RGB_LED) neste pinout de referência** — todos os
+> GPIOs 0–48 utilizáveis do ESP32-S3 N16R8 já estão ocupados pelos módulos acima (ou são
+> reservados de fábrica: 26–32 = flash, 19/20 = USB nativo, 43/44 = UART0). Duas saídas
+> práticas:
+> 1. **Reaproveitar um pino de strap** (GPIO 0 ou GPIO 45) para o `RGB_LED` — este mesmo
+>    pinout já faz isso com sucesso para o display (GPIO 3 = BLK, GPIO 46 = CS, ambos
+>    strap). Funciona porque o WS2812 só é "driven" depois do boot; só evite qualquer
+>    pull elétrico no módulo que force o nível errado durante o power-on.
+> 2. **Liberar um pino não essencial** — ex.: um dos botões de direção (se for usar
+>    joystick analógico) ou o IR RX/TX (se não for montar infravermelho).
 
 Observações de fiação:
 - O CC1101, nRF24 e o SD podem **compartilhar o mesmo barramento SPI** (com CS separados)
