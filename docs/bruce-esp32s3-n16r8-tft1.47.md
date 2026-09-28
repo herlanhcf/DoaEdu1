@@ -179,14 +179,16 @@ Isso é desenvolvimento de firmware de verdade (não é opção de menu) — exi
 PlatformIO com essa alteração. Fora do RSSI, dá pra adaptar o mesmo `setLedBar()` pra outras
 métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
 
-### 3.3 Expansor de I/O pra 5 botões + PN532 — ✅ decidido: PCF8574 (8 bits), GPIO confirmado
+### 3.3 Expansor de I/O pra 6 botões (D-pad + SELECT + BACK) + PN532 — ✅ decidido: PCF8574 (8 bits), GPIO confirmado
 
 **Escolha final: PCF8574** (expansor I2C de 8 bits) — endereço padrão `0x20`, não colide
 com o `0x24` do PN532, então os dois entram no **mesmo barramento** sem tocar em jumper de
-endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 0**.
+endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 0**. Nenhum dos dois
+compartilha mais nada com o GPS — ele tem UART fixo e dedicado (GPIO 8/42, seção 5).
 
-- `P0` = PREV, `P1` = NEXT, `P2` = SELECT, `P3`/`P4` = os outros 2 botões (define os nomes),
-  `P5`–`P7` sobram livres no próprio expansor (dá pra crescer sem gastar mais GPIO nenhum).
+- `P0` = UP, `P1` = DOWN, `P2` = LEFT, `P3` = RIGHT, `P4` = SELECT, `P5` = BACK — os 6
+  botões completos (4 direções + confirmar + voltar). `P6`–`P7` sobram livres no próprio
+  expansor (dá pra crescer sem gastar mais GPIO nenhum).
 - Cada botão: um lado no pino `Px` do PCF8574, outro no GND. O PCF8574 tem pull-up interno
   fraco (~100 kΩ, quase-bidirecional) — funciona pra botão, mas se notar bounce/instabilidade,
   reforça com 10 kΩ externo em cada `Px` (não no ESP32).
@@ -375,10 +377,10 @@ I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
   SDA ........ GPIO 48
   SCL ........ GPIO 0 (strap*)
     → PN532 (NFC), endereço 0x24
-    → PCF8574 (expansor 8 bits), endereço 0x20
-        P0 = PREV     P1 = NEXT     P2 = SELECT
-        P3 = (4º botão — define aqui)   P4 = (5º botão — define aqui)
-        P5–P7 = livres
+    → PCF8574 (expansor 8 bits), endereço 0x20 — 6 botões (D-pad + SELECT + BACK)
+        P0 = UP       P1 = DOWN     P2 = LEFT
+        P3 = RIGHT    P4 = SELECT   P5 = BACK
+        P6–P7 = livres
 
 GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem LoRa)
   RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 7, 42, 47
