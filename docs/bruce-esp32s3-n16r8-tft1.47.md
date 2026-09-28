@@ -183,8 +183,10 @@ métricas: nº de pulsos já capturados num timeout, ou progresso de um replay.
 
 **Escolha final: PCF8574** (expansor I2C de 8 bits) — endereço padrão `0x20`, não colide
 com o `0x24` do PN532, então os dois entram no **mesmo barramento** sem tocar em jumper de
-endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 0**. Nenhum dos dois
-compartilha mais nada com o GPS — ele tem UART fixo e dedicado (GPIO 8/42, seção 5).
+endereço. Pinos confirmados na seção 5: **SDA = GPIO 48, SCL = GPIO 7** (GPIO 0 foi
+descartado dessa função — era pino de strap e sobrou uma opção mais segura, ver nota na
+seção 5). Nenhum dos dois compartilha mais nada com o GPS — ele tem UART fixo e dedicado
+(GPIO 8/42, seção 5).
 
 - `P0` = UP, `P1` = DOWN, `P2` = LEFT, `P3` = RIGHT, `P4` = SELECT, `P5` = BACK — os 6
   botões completos (4 direções + confirmar + voltar). `P6`–`P7` sobram livres no próprio
@@ -322,33 +324,46 @@ Esta é a parte que costuma faltar nos tutoriais. Divididos por finalidade.
 - Regulador 3.3V (ex.: **AMS1117-3.3** ou, melhor para bateria, um **TLV1117/ME6211/HT7333**) + seus caps de entrada/saída.
 - Conversor USB-serial (CH340/CP2102) se quiser gravar/depurar sem USB nativo — o S3 tem USB nativo, então geralmente dispensa.
 
-### 4.5 Checklist "por canto" — onde vai cada capacitor/resistor
+### 4.5 Checklist "por canto" (histórico) — ver seção 4.6 pra lista atual
 
-Consolidado de onde soldar cada passivo, módulo por módulo. Isso é o principal suspeito
-quando o **CC1101 só capta "sinal em todo lugar" depois de colocar a antena** (sintoma
-clássico de ruído entrando pela alimentação/RF, não de bug de firmware — ver seção 5.1):
+> ⚠️ Essa tabela ficou desatualizada depois do redesenho dos botões/PN532 pro I2C — os
+> valores de capacitor continuam válidos, mas os pinos e os resistores de botão/PN532 não.
+> **Use a seção 4.6 abaixo como referência atual.**
 
-| Local | Capacitor | Resistor |
-|-------|-----------|----------|
-| **Rail 5V** (saída do boost MT3608) | 1× **10 µF** (ou 100 µF) eletrolítico, o mais perto possível da saída do boost | — |
-| **Rail 3.3V** (saída do regulador do ESP32/DevKit) | 1× **10 µF** (ou 100 µF) eletrolítico, perto de onde o 3.3V se divide pros módulos | — |
-| **ESP32-S3** (só se módulo cru WROOM-1, sem DevKit) | 100 nF + 10 µF no pino 3V3 | 10 kΩ pull-up no EN + 10 kΩ pull-up no GPIO0 |
-| **CC1101** ⚠️ | **100 nF cerâmico direto nos pinos VCC/GND do módulo** — solda um extra mesmo se a placa clone já tiver um, o de fábrica costuma ser fraco/mal posicionado | pull-up ~10 kΩ no CSN (evita flutuar no boot/bus compartilhado) |
-| **nRF24L01+** ⚠️ (principal suspeito de ruído) | 100 nF cerâmico VCC/GND **+ 10 µF (ou 100 µF) eletrolítico dedicado**, soldado direto entre VCC e GND do módulo — sem esse cap grande ele "sujeita" a alimentação inteira | pull-up ~10 kΩ no CSN |
-| **PN532** (I²C, agora SDA=GPIO2/SCL=GPIO0) | 100 nF cerâmico VCC/GND | 4,7 kΩ em SDA + 4,7 kΩ em SCL (só se o breakout não já trouxer) |
-| **Bateria (ADC, GPIO1)** | — | Divisor **2× 100 kΩ** do BAT+ do TP4056 até o `BAT_PIN` (ver seção 3.5) |
-| **Leitor microSD** | 100 nF cerâmico VCC/GND | 10 kΩ pull-up em CS, Dat1 e Dat2 |
-| **Botões de navegação** | — | 10 kΩ pull-up por botão (dispensável com `INPUT_PULLUP` interno) |
-| **IR TX** (só LED discreto, sem KY-005) | — | 330 Ω na base do transistor 2N2222 + 47–100 Ω limitador do LED |
-| **Barra WS2812 (RGB)** | 100–1000 µF eletrolítico entre VCC/GND, bem perto do 1º LED da barra (absorve o pico de corrente de todos os LEDs acendendo juntos) | ~300–500 Ω em série no fio de dado (`IN`), perto do pino do ESP32 |
+### 4.6 Lista final consolidada — TODO capacitor, resistor, transistor, VCC/GND
 
-**Se o problema for justamente o CC1101 "escutando tudo" ao plugar a antena:** o primeiro
-suspeito é a linha **nRF24** desta tabela — sem o cap eletrolítico dedicado nele, o ruído
-da alimentação sobe pro CC1101 e o RSSI dele passa a disparar com qualquer ruído (é um
-sintoma clássico do chip: sem antena não aparece porque o front-end RF está "surdo",
-com antena ele fica sensível ao ruído que estava ali o tempo todo). Depois disso, confira
-o 100 nF extra no CC1101 e a distância do fio da antena em relação aos fios do SPI
-compartilhado.
+Isso substitui a 4.1–4.5 como referência única e atual, já batendo com o pinout da seção 5
+(pós-redesenho: botões+PN532 no I2C, LoRa fora, bateria no GPIO6).
+
+| # | Componente | VCC | GND | Capacitor(es) | Resistor(es)/Transistor |
+|---|-----------|-----|-----|----------------|--------------------------|
+| 1 | **Rail 5V** (saída do boost MT3608) | bateria/USB → boost | comum | 1× **10 µF** (ou 100 µF) eletrolítico na saída do boost | — |
+| 2 | **Rail 3.3V** (saída do regulador ESP32/DevKit) | 5V → regulador | comum | 1× **10 µF** (ou 100 µF) eletrolítico onde o 3.3V se divide pros módulos | — |
+| 3 | **ESP32-S3** (só se WROOM-1 cru, sem DevKit) | 3.3V | comum | 100 nF + 10 µF no pino 3V3 | 10 kΩ pull-up no EN + 1 µF EN→GND · 10 kΩ pull-up no GPIO0 + botão BOOT→GND |
+| 4 | **Display ST7789** | 3.3V | comum | 100 nF cerâmico VCC/GND | — |
+| 5 | **CC1101** ⚠️ | 3.3V | comum | 100 nF cerâmico direto nos pinos VCC/GND (solda um extra mesmo se o clone já tiver) | pull-up ~10 kΩ no CS (GPIO 10) |
+| 6 | **nRF24L01+** ⚠️ principal suspeito de ruído | 3.3V bem filtrado | comum | 100 nF cerâmico **+ 10 µF (ou 100 µF) eletrolítico dedicado**, direto no VCC/GND do módulo | pull-up ~10 kΩ no CSN (GPIO 40) |
+| 7 | **microSD** | 3.3V | comum | 100 nF cerâmico VCC/GND | pull-up ~10 kΩ no CS (GPIO 15) |
+| 8 | **IR RX** (TSOP38238/VS1838B) | 3.3V | comum | 100 nF cerâmico VCC/GND (filtra ruído — sensor sensível) | — |
+| 9 | **IR TX** — só se LED discreto (dispensa tudo isso se usar módulo KY-005) | 3.3V/5V no LED | GND no emissor do transistor | — | Transistor **2N2222** (ou PN2222A/S8050/2N7000) · 330 Ω na base · 47–100 Ω limitador do LED — ligação completa na seção 4.3 |
+| 10 | **Barra WS2812×8** | 5V (preferível) | comum | 100–1000 µF eletrolítico perto do 1º LED | ~300–500 Ω em série no `DIN` (GPIO 38), perto do pino do ESP32 |
+| 11 | **Barramento I2C** (SDA=GPIO48, SCL=GPIO7) — **um pull-up só pro barramento inteiro**, não um por dispositivo | — | — | — | **4,7 kΩ em SDA + 4,7 kΩ em SCL**, uma vez só; se PN532 e PCF8574 tiverem pull-up de fábrica nos dois, desabilita/remove de um deles (dois pull-ups em paralelo ficam fortes demais, ~2,3 kΩ efetivo) |
+| 12 | ↳ **PN532** (endereço 0x24) | 3.3V | comum | 100 nF cerâmico VCC/GND | — (pull-up já é o item 11) |
+| 13 | ↳ **PCF8574** (endereço 0x20) | 3.3V | comum | 100 nF cerâmico VCC/GND | A0/A1/A2 no GND (endereço 0x20, padrão) |
+| 14 | ↳ **6 botões** (UP/DOWN/LEFT/RIGHT/SELECT/BACK) em P0–P5 do PCF8574 | — | um lado de cada botão no GND | — | Pull-up interno do PCF8574 (~100 kΩ) já basta; só reforça com **10 kΩ por botão** em cada `Px` se notar bounce |
+| 15 | **GPS NEO-6M** | 3.3V | comum | 100 nF cerâmico VCC/GND | — |
+| 16 | **Bateria — divisor ADC** (BAT_PIN = GPIO 6) | BAT+ do TP4056 | comum | — | **2× 100 kΩ** em série do BAT+ até o GND, ponto médio no GPIO 6 |
+
+**Se o problema for o CC1101 "escutando tudo" ao plugar a antena:** o primeiro suspeito é a
+linha **nRF24** (#6) — sem o cap eletrolítico dedicado, o ruído da alimentação sobe pro
+CC1101 e o RSSI dispara com qualquer ruído (sem antena não aparece porque o front-end RF
+está "surdo"; com antena, fica sensível ao ruído que já estava ali). Depois, confira o
+100 nF extra no CC1101 (#5) e a distância do fio da antena em relação ao SPI compartilhado.
+
+**O que saiu da lista** (não precisa mais desses componentes, mesmo que tenha visto em
+revisões antigas deste doc): pull-up direto de botão no ESP32 (agora é no PCF8574, item 14),
+pull-up de PN532 em pino dedicado (agora é o pull-up único do barramento, item 11), qualquer
+passivo de LoRa (módulo descartado).
 
 ---
 
@@ -375,22 +390,38 @@ microSD (SPI)                 IR                        LED WS2812 ×8
 
 I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
   SDA ........ GPIO 48
-  SCL ........ GPIO 0 (strap*)
+  SCL ........ GPIO 7
     → PN532 (NFC), endereço 0x24
     → PCF8574 (expansor 8 bits), endereço 0x20 — 6 botões (D-pad + SELECT + BACK)
         P0 = UP       P1 = DOWN     P2 = LEFT
         P3 = RIGHT    P4 = SELECT   P5 = BACK
         P6–P7 = livres
 
-GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem LoRa)
-  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 7, 47
+GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem uso)
+  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 0 (⚠️ strap — evitar), GPIO 47
   TX ......... GPIO 42
 ```
 
-\* `SCL` em **GPIO 0** funciona porque o barramento I2C ocioso fica em nível **alto** por
-causa do pull-up (mesmo sem o ESP32 fazer nada) — é exatamente o nível que o GPIO0 precisa
-ter no boot pra entrar em modo normal (LOW só entraria em modo gravação). Mesmo princípio
-que os pinos de strap do ESP32-S3 em geral toleram bem quando o periférico já nasce "alto".
+**⚠️ Correção importante — GPIO 0 NÃO é mais usado (era pra SCL, mudei pra GPIO 7):**
+Pesquisando mais a fundo: sim, tecnicamente o GPIO0 *funcionaria* como SCL — o pull-up do
+I2C mantém o nível alto que o boot precisa. Mas o consenso da comunidade ESP32/ESP32-S3 é
+**evitar strap pin em periférico crítico quando sobra pino livre pra usar** (o próprio
+GPIO0 tem um pull-up interno fraco que, combinado com o pull-up externo do I2C e com
+qualquer coisa que o circuito de auto-reset do USB-serial (DTR/RTS) fizer nesse pino durante
+gravação, é uma variável a mais que não vale o risco de "às vezes não entra em modo de
+gravação" só pra economizar 1 pino). Como o **GPIO 7 sobrou livre** depois que o LoRa foi
+descartado, troquei o `SCL` pra lá — **GPIO 0 fica completamente de fora do circuito agora**,
+sem nenhum componente ligado nele, é o jeito mais seguro.
+
+**Pinos reservados do ESP32-S3 N16R8 — confirmado via datasheet (pra futuras expansões):**
+| Faixa | Motivo | Pode usar? |
+|-------|--------|------------|
+| GPIO 26–32 | Flash SPI interno | ❌ nunca |
+| GPIO 33–34 | Nem existem fisicamente no módulo WROOM-1 (não são pinos de fora) | ❌ não existem no seu módulo |
+| GPIO 35–37 | PSRAM Octal interna — **todo módulo R8 (8MB PSRAM) tem isso reservado** | ❌ nunca no N16R8 |
+| GPIO 19–20 | USB nativo (D-/D+) | ⚠️ só se não for usar BadUSB por cabo |
+| GPIO 43–44 | UART0 padrão (console serial) | ⚠️ só se não for usar o Serial CLI/log por esse UART |
+| GPIO 0, 3, 45, 46 | Strap (boot mode/JTAG/VDD_SPI) | ⚠️ dá pra reusar depois do boot, mas só se não sobrar outra opção |
 
 **O que mudou e por quê:**
 - **Botões (PREV/NEXT/SELECT + os 2 que faltam) e o PN532 saíram dos GPIOs diretos e foram
