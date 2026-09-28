@@ -383,7 +383,8 @@ I2C — NFC + expansor de botões (mesmo barramento, seção 3.3 atualizada)
         P6–P7 = livres
 
 GPS NEO-6M (UART)             BATERIA (ADC)             LIVRES (sem LoRa)
-  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 7, 42, 47
+  RX ......... GPIO 8            BAT_PIN .. GPIO 6         GPIO 7, 47
+  TX ......... GPIO 42
 ```
 
 \* `SCL` em **GPIO 0** funciona porque o barramento I2C ocioso fica em nível **alto** por
@@ -401,9 +402,9 @@ que os pinos de strap do ESP32-S3 em geral toleram bem quando o periférico já 
   agora tem UART fixo e dedicado (RX 8, TX 42), sem precisar alternar nada em firmware.
 - Dos 5 pinos liberados, sobrou um pra **bateria** (`BAT_PIN` = **GPIO 6**, ADC1 limpo, não é
   strap — resolve a seção 3.5 sem precisar mexer em mais nada).
-- **LoRa descartado** (decisão do usuário — ver seção 3.4, marcada como não planejada). Os
-  outros 3 pinos que sobraram do hack GPS/NFC (**GPIO 7, 42 e 47**) ficam **livres em
-  reserva** — nenhum módulo planejado usa eles agora.
+- **LoRa descartado** (decisão do usuário — ver seção 3.4, marcada como não planejada). Dos
+  5 pinos liberados, GPIO 6→bateria, GPIO 8→GPS RX e GPIO 42→GPS TX já têm dono; sobram só
+  **GPIO 7 e GPIO 47 livres em reserva** — nenhum módulo planejado usa eles agora.
 
 Observações de fiação:
 - **No seu pinout atual, CC1101 e nRF24 já compartilham SCK/MOSI/MISO (GPIO 12/11/13), cada
